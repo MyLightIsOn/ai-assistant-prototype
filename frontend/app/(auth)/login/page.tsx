@@ -43,21 +43,21 @@ function LoginForm() {
   }
 
   return (
-    <div className="bg-white p-8 rounded-lg shadow-md">
+    <div className="bg-card p-8 rounded-lg shadow-md border border-border">
       <div className="text-center mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">AI Assistant</h1>
-        <p className="text-gray-600 mt-2">Sign in to your account</p>
+        <h1 className="text-3xl font-bold text-foreground">AI Assistant</h1>
+        <p className="text-muted-foreground mt-2">Sign in to your account</p>
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
         {error && (
-          <div className="bg-red-50 border border-red-200 text-red-800 px-4 py-3 rounded-md text-sm">
+          <div className="bg-destructive/10 border border-destructive/50 text-destructive px-4 py-3 rounded-md text-sm">
             {error}
           </div>
         )}
 
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="email" className="block text-sm font-medium text-foreground mb-2">
             Email
           </label>
           <input
@@ -66,13 +66,13 @@ function LoginForm() {
             value={email}
             onChange={(e) => setEmail(e.target.value)}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="admin@localhost"
           />
         </div>
 
         <div>
-          <label htmlFor="password" className="block text-sm font-medium text-gray-700 mb-2">
+          <label htmlFor="password" className="block text-sm font-medium text-foreground mb-2">
             Password
           </label>
           <input
@@ -81,7 +81,7 @@ function LoginForm() {
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             required
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full px-3 py-2 bg-background border border-input rounded-md text-foreground focus:outline-none focus:ring-2 focus:ring-ring"
             placeholder="Enter your password"
           />
         </div>
@@ -89,22 +89,24 @@ function LoginForm() {
         <button
           type="submit"
           disabled={isLoading}
-          className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="w-full bg-primary text-primary-foreground py-2 px-4 rounded-md hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {isLoading ? "Signing in..." : "Sign In"}
         </button>
       </form>
 
-      <div className="mt-6 text-center text-sm text-gray-600">
-        <p>Default credentials: admin@localhost / changeme</p>
-      </div>
+      {process.env.NODE_ENV === "development" && (
+        <div className="mt-6 text-center text-sm text-muted-foreground">
+          <p>Default credentials: admin@localhost / changeme</p>
+        </div>
+      )}
     </div>
   );
 }
 
 export default function LoginPage() {
   return (
-    <Suspense fallback={<div className="bg-white p-8 rounded-lg shadow-md">Loading...</div>}>
+    <Suspense fallback={<div className="bg-card p-8 rounded-lg shadow-md border border-border">Loading...</div>}>
       <LoginForm />
     </Suspense>
   );
