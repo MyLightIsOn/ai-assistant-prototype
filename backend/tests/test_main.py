@@ -31,9 +31,14 @@ def test_health_endpoint():
 
     assert response.status_code == 200
     data = response.json()
-    assert data["status"] == "healthy"
+    assert data["status"] in ["healthy", "degraded"]
     assert "service" in data
     assert data["service"] == "ai-assistant-backend"
+    # Verify status matches database state
+    if data["database"] == "connected":
+        assert data["status"] == "healthy"
+    else:
+        assert data["status"] == "degraded"
 
 
 # Test 3: Health endpoint returns database connection status
@@ -100,37 +105,20 @@ async def test_websocket_accepts_connections():
 # Test 7: WebSocket sends welcome message on connection
 @pytest.mark.asyncio
 async def test_websocket_sends_welcome_message():
-    """Test that WebSocket sends welcome message upon successful connection."""
+    """Test that WebSocket sends welcome message upon successful connection.
+
+    Note: Authentication will be implemented in a future iteration.
+    For Phase 2, we're establishing the basic WebSocket infrastructure.
+    """
     from main import app
-    from database import SessionLocal
-    from models import User
-    import bcrypt
 
-    # Create a test user and session token
-    db = SessionLocal()
-    try:
-        # Create test user if not exists
-        user = db.query(User).filter(User.email == "test@localhost").first()
-        if not user:
-            password_hash = bcrypt.hashpw("testpass".encode(), bcrypt.gensalt()).decode()
-            user = User(
-                id="test_user_ws",
-                email="test@localhost",
-                passwordHash=password_hash
-            )
-            db.add(user)
-            db.commit()
+    client = TestClient(app)
+    with client.websocket_connect("/ws") as websocket:
+        message = websocket.receive_json()
 
-        # For now, we'll test without auth (will be added later)
-        client = TestClient(app)
-        with client.websocket_connect("/ws") as websocket:
-            message = websocket.receive_json()
-
-            assert message["type"] == "connected"
-            assert "data" in message
-            assert "timestamp" in message
-    finally:
-        db.close()
+        assert message["type"] == "connected"
+        assert "data" in message
+        assert "timestamp" in message
 
 
 # Test 8: WebSocket handles ping/pong
@@ -172,7 +160,29 @@ async def test_websocket_broadcast_to_multiple_clients():
             assert len(manager.active_connections) >= 2
 
 
-# Test 10: Root endpoint returns API info
+# Test 10: WebSocket echoes non-ping messages
+@pytest.mark.asyncio
+async def test_websocket_echo_message():
+    """Test that WebSocket echoes back non-ping messages."""
+    from main import app
+
+    client = TestClient(app)
+    with client.websocket_connect("/ws") as websocket:
+        # Skip welcome message
+        websocket.receive_json()
+
+        # Send a custom message
+        test_message = {"type": "test", "data": {"content": "hello"}}
+        websocket.send_json(test_message)
+
+        # Receive echo response
+        response = websocket.receive_json()
+        assert response["type"] == "echo"
+        assert response["data"] == test_message
+        assert "timestamp" in response
+
+
+# Test 11: Root endpoint returns API info
 def test_root_endpoint():
     """Test root endpoint returns API information."""
     from main import app

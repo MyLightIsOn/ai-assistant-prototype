@@ -6,7 +6,7 @@ Main application with WebSocket support for real-time communication.
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect
 from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import List, Dict, Any
 import json
 from database import SessionLocal, engine
@@ -60,8 +60,10 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
-            except Exception:
+            except Exception as e:
                 # Connection might be closed, will be removed on next interaction
+                # Log error for debugging
+                print(f"Error broadcasting to client: {e}")
                 pass
 
 
@@ -86,17 +88,19 @@ async def health():
     # Check database connection
     db_status = "connected"
     try:
-        db = SessionLocal()
-        db.execute("SELECT 1")
-        db.close()
+        with SessionLocal() as db:
+            db.execute("SELECT 1")
     except Exception:
         db_status = "disconnected"
 
+    # Return degraded status if database is not connected
+    status = "healthy" if db_status == "connected" else "degraded"
+
     return {
-        "status": "healthy",
+        "status": status,
         "service": "ai-assistant-backend",
         "database": db_status,
-        "timestamp": datetime.utcnow().isoformat()
+        "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
 
@@ -131,7 +135,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     "message": "Connected to AI Assistant Backend",
                     "client_count": len(manager.active_connections)
                 },
-                "timestamp": datetime.utcnow().isoformat()
+                "timestamp": datetime.now(timezone.utc).isoformat()
             },
             websocket
         )
@@ -147,7 +151,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     {
                         "type": "pong",
                         "data": {},
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     },
                     websocket
                 )
@@ -157,7 +161,7 @@ async def websocket_endpoint(websocket: WebSocket):
                     {
                         "type": "echo",
                         "data": data,
-                        "timestamp": datetime.utcnow().isoformat()
+                        "timestamp": datetime.now(timezone.utc).isoformat()
                     },
                     websocket
                 )
