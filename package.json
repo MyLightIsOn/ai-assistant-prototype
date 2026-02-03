@@ -1,0 +1,26 @@
+{
+  "name": "ai-assistant-prototype",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "frontend"
+  ],
+  "scripts": {
+    "dev": "npm run dev --workspace=frontend",
+    "dev:backend": "cd backend && source venv/bin/activate && python main.py",
+    "dev:scheduler": "cd backend && source venv/bin/activate && python scheduler.py",
+    "dev:all": "concurrently \"npm run dev\" \"npm run dev:backend\" \"npm run dev:scheduler\"",
+    "build": "npm run build --workspace=frontend",
+    "start": "pm2 start ecosystem.config.js",
+    "stop": "pm2 stop ecosystem.config.js",
+    "restart": "pm2 restart ecosystem.config.js",
+    "test": "npm run test --workspace=frontend",
+    "lint": "npm run lint --workspace=frontend",
+    "prisma:generate": "npm run prisma:generate --workspace=frontend",
+    "prisma:migrate": "npm run prisma:migrate --workspace=frontend",
+    "prisma:studio": "npm run prisma:studio --workspace=frontend"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2"
+  }
+}

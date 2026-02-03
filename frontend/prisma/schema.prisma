@@ -1,0 +1,91 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model User {
+  id           String    @id @default(cuid())
+  email        String    @unique
+  name         String?
+  passwordHash String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  sessions     Session[]
+  tasks        Task[]
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Task {
+  id          String          @id @default(cuid())
+  userId      String
+  name        String
+  description String?
+  command     String
+  args        String
+  schedule    String
+  enabled     Boolean         @default(true)
+  priority    String          @default("default")
+  notifyOn    String          @default("completion,error")
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+  lastRun     DateTime?
+  nextRun     DateTime?
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  executions  TaskExecution[]
+}
+
+model TaskExecution {
+  id          String        @id @default(cuid())
+  taskId      String
+  status      String
+  startedAt   DateTime      @default(now())
+  completedAt DateTime?
+  output      String?
+  duration    Int?
+  task        Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  logs        ActivityLog[]
+}
+
+model ActivityLog {
+  id          String         @id @default(cuid())
+  executionId String?
+  type        String
+  message     String
+  metadata    String?
+  createdAt   DateTime       @default(now())
+  execution   TaskExecution? @relation(fields: [executionId], references: [id])
+}
+
+model Notification {
+  id        String    @id @default(cuid())
+  title     String
+  message   String
+  priority  String    @default("default")
+  tags      String?
+  sentAt    DateTime  @default(now())
+  delivered Boolean   @default(true)
+  readAt    DateTime?
+}
+
+model AiMemory {
+  id        String   @id @default(cuid())
+  key       String   @unique
+  value     String
+  category  String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
