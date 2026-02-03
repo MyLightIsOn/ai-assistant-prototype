@@ -93,3 +93,4 @@ ai-workspace/
 
 # Database backups
 backups/
+/docs/
