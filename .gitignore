@@ -87,6 +87,9 @@ public/sw.js.map
 public/workbox-*.js.map
 public/worker-*.js.map
 
-# AI Workspace (user-managed data)
-# Note: Not ignoring ai-workspace/ as it contains important user data
-/docs/
+# AI Workspace (AI's "desktop" - entirely ignored)
+# AI can create separate git repos inside ai-workspace/dev/
+ai-workspace/
+
+# Database backups
+backups/
