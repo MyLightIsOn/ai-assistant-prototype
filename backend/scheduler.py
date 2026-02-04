@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -22,14 +22,11 @@ from sqlalchemy.orm import sessionmaker
 
 from models import Task, TaskExecution, ActivityLog
 from database import get_db
+from logger import get_logger
 
 
 # Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class TaskScheduler:
@@ -185,7 +182,7 @@ class TaskScheduler:
                 id=str(uuid.uuid4()),
                 taskId=task_id,
                 status="running",
-                startedAt=datetime.utcnow()
+                startedAt=datetime.now(timezone.utc)
             )
             db.add(execution)
             db.commit()
@@ -209,12 +206,12 @@ class TaskScheduler:
             logger.info(f"Executing task {task_id}: {task.name}")
 
             # Execute the task
-            start_time = datetime.utcnow()
+            start_time = datetime.now(timezone.utc)
             try:
                 output, exit_code = await execute_claude_command(task.command, task.args)
 
                 # Update execution record
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 execution.status = "completed" if exit_code == 0 else "failed"
                 execution.completedAt = end_time
                 execution.output = output
@@ -243,7 +240,7 @@ class TaskScheduler:
 
             except Exception as e:
                 # Handle execution error
-                end_time = datetime.utcnow()
+                end_time = datetime.now(timezone.utc)
                 execution.status = "failed"
                 execution.completedAt = end_time
                 execution.output = str(e)

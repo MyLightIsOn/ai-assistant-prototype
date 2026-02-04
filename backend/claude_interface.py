@@ -16,10 +16,13 @@ Key features:
 import asyncio
 import logging
 from typing import AsyncGenerator, Optional
+from pathlib import Path
 import os
 
+from logger import get_logger
+
 # Setup logging
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 async def execute_claude_task(
@@ -46,6 +49,13 @@ async def execute_claude_task(
         async for line in execute_claude_task("Write a Python script", "/workspace"):
             print(line)
     """
+    # Validate workspace path
+    workspace = Path(workspace_path)
+    if not workspace.exists():
+        raise ValueError(f"Workspace path does not exist: {workspace_path}")
+    if not workspace.is_dir():
+        raise ValueError(f"Workspace path is not a directory: {workspace_path}")
+
     process = None
     try:
         logger.info(f"Starting Claude task: {task_description[:100]}...")

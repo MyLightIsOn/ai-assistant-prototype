@@ -12,7 +12,7 @@ Provides:
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timezone
 from logging.handlers import TimedRotatingFileHandler
 from pathlib import Path
 from typing import Optional, Dict, Any
@@ -42,7 +42,7 @@ class JSONLogFormatter(logging.Formatter):
             JSON string with structured log data
         """
         log_data = {
-            "timestamp": datetime.utcnow().isoformat() + "Z",
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "level": record.levelname,
             "message": record.getMessage(),
             "task_id": getattr(record, "task_id", None),

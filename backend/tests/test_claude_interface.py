@@ -45,35 +45,38 @@ def test_execute_claude_task_exists():
 async def test_subprocess_spawns_with_correct_args():
     """Test that subprocess spawns with 'claude --yes' command."""
     from claude_interface import execute_claude_task
+    import tempfile
 
-    with patch('asyncio.create_subprocess_exec') as mock_subprocess:
-        # Setup mock process
-        mock_process = AsyncMock()
-        mock_process.pid = 12345
-        mock_process.stdin = AsyncMock()
-        mock_process.stdin.write = Mock()
-        mock_process.stdin.drain = AsyncMock()
-        mock_process.stdin.close = Mock()
+    # Create temporary workspace directory
+    with tempfile.TemporaryDirectory() as tmpdir:
+        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+            # Setup mock process
+            mock_process = AsyncMock()
+            mock_process.pid = 12345
+            mock_process.stdin = AsyncMock()
+            mock_process.stdin.write = Mock()
+            mock_process.stdin.drain = AsyncMock()
+            mock_process.stdin.close = Mock()
 
-        # Mock stdout/stderr readline to return empty (EOF)
-        mock_process.stdout = AsyncMock()
-        mock_process.stdout.readline = AsyncMock(return_value=b'')
-        mock_process.stderr = AsyncMock()
-        mock_process.stderr.readline = AsyncMock(return_value=b'')
+            # Mock stdout/stderr readline to return empty (EOF)
+            mock_process.stdout = AsyncMock()
+            mock_process.stdout.readline = AsyncMock(return_value=b'')
+            mock_process.stderr = AsyncMock()
+            mock_process.stderr.readline = AsyncMock(return_value=b'')
 
-        mock_process.wait = AsyncMock(return_value=None)
-        mock_process.returncode = 0
-        mock_subprocess.return_value = mock_process
+            mock_process.wait = AsyncMock(return_value=None)
+            mock_process.returncode = 0
+            mock_subprocess.return_value = mock_process
 
-        # Consume generator
-        async for line in execute_claude_task("test task", "/tmp/workspace"):
-            pass
+            # Consume generator
+            async for line in execute_claude_task("test task", tmpdir):
+                pass
 
-        # Verify subprocess was called with correct command
-        mock_subprocess.assert_called_once()
-        args = mock_subprocess.call_args[0]
-        assert args[0] == 'claude'
-        assert '--yes' in args
+            # Verify subprocess was called with correct command
+            mock_subprocess.assert_called_once()
+            args = mock_subprocess.call_args[0]
+            assert args[0] == 'claude'
+            assert '--yes' in args
 
 
 # Test 4: Working directory set correctly
@@ -81,35 +84,36 @@ async def test_subprocess_spawns_with_correct_args():
 async def test_working_directory_set():
     """Test that subprocess working directory is set to ai-workspace."""
     from claude_interface import execute_claude_task
+    import tempfile
 
-    workspace_path = "/Users/test/ai-workspace"
+    # Create temporary workspace directory
+    with tempfile.TemporaryDirectory() as workspace_path:
+        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
+            # Setup mock process
+            mock_process = AsyncMock()
+            mock_process.pid = 12345
+            mock_process.stdin = AsyncMock()
+            mock_process.stdin.write = Mock()
+            mock_process.stdin.drain = AsyncMock()
+            mock_process.stdin.close = Mock()
 
-    with patch('asyncio.create_subprocess_exec') as mock_subprocess:
-        # Setup mock process
-        mock_process = AsyncMock()
-        mock_process.pid = 12345
-        mock_process.stdin = AsyncMock()
-        mock_process.stdin.write = Mock()
-        mock_process.stdin.drain = AsyncMock()
-        mock_process.stdin.close = Mock()
+            mock_process.stdout = AsyncMock()
+            mock_process.stdout.readline = AsyncMock(return_value=b'')
+            mock_process.stderr = AsyncMock()
+            mock_process.stderr.readline = AsyncMock(return_value=b'')
 
-        mock_process.stdout = AsyncMock()
-        mock_process.stdout.readline = AsyncMock(return_value=b'')
-        mock_process.stderr = AsyncMock()
-        mock_process.stderr.readline = AsyncMock(return_value=b'')
+            mock_process.wait = AsyncMock(return_value=None)
+            mock_process.returncode = 0
+            mock_subprocess.return_value = mock_process
 
-        mock_process.wait = AsyncMock(return_value=None)
-        mock_process.returncode = 0
-        mock_subprocess.return_value = mock_process
+            # Consume generator
+            async for line in execute_claude_task("test task", workspace_path):
+                pass
 
-        # Consume generator
-        async for line in execute_claude_task("test task", workspace_path):
-            pass
-
-        # Verify cwd parameter was set
-        mock_subprocess.assert_called_once()
-        kwargs = mock_subprocess.call_args[1]
-        assert kwargs['cwd'] == workspace_path
+            # Verify cwd parameter was set
+            mock_subprocess.assert_called_once()
+            kwargs = mock_subprocess.call_args[1]
+            assert kwargs['cwd'] == workspace_path
 
 
 # Test 5: Output streams line-by-line

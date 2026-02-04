@@ -9,16 +9,17 @@ import os
 import json
 import logging
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 import requests
 from sqlalchemy.orm import Session
 
 from database import get_db
 from models import ActivityLog
+from logger import get_logger
 
 # Configure logging
-logger = logging.getLogger(__name__)
+logger = get_logger()
 
 
 class NotificationError(Exception):
@@ -175,17 +176,18 @@ def log_notification_to_db(
         message: Human-readable log message
         metadata: Additional structured data (will be JSON-encoded)
     """
+    db = None
     try:
         # Get database session
         db = next(get_db())
 
         # Create log entry
         log_entry = ActivityLog(
-            id=f"log_{datetime.utcnow().timestamp()}_{os.urandom(4).hex()}",
+            id=f"log_{datetime.now(timezone.utc).timestamp()}_{os.urandom(4).hex()}",
             type=type,
             message=message,
             metadata_=json.dumps(metadata) if metadata else None,
-            createdAt=datetime.utcnow()
+            createdAt=datetime.now(timezone.utc)
         )
 
         db.add(log_entry)
@@ -195,4 +197,5 @@ def log_notification_to_db(
         logger.error(f"Failed to log notification to database: {e}")
         # Don't fail notification on logging error
     finally:
-        db.close()
+        if db:
+            db.close()
