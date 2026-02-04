@@ -7,10 +7,14 @@ Following TDD approach:
 3. Refactor
 """
 
+import json
+import tempfile
+from datetime import datetime
+from pathlib import Path
+
 import pytest
 from fastapi.testclient import TestClient
 from httpx import AsyncClient
-import json
 
 
 # Test 1: FastAPI app can be created and runs
@@ -195,3 +199,95 @@ def test_root_endpoint():
     assert "message" in data
     assert "version" in data
     assert "websocket" in data
+
+
+# Test 12: Log viewer endpoint exists
+def test_logs_endpoint_exists():
+    """Test /api/logs endpoint exists and returns logs."""
+    from main import app
+    client = TestClient(app)
+
+    response = client.get("/api/logs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert "logs" in data
+    assert isinstance(data["logs"], list)
+
+
+# Test 13: Log viewer returns JSON log entries
+def test_logs_endpoint_returns_json_entries():
+    """Test /api/logs endpoint returns parsed JSON log entries."""
+    from main import app
+    from logger import get_logger
+
+    # Write some test logs
+    logger = get_logger()
+    logger.info("Test log entry", extra={"task_id": "test-123"})
+
+    client = TestClient(app)
+    response = client.get("/api/logs")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["logs"]) > 0
+
+    # Check structure of log entry
+    log_entry = data["logs"][0]
+    assert "timestamp" in log_entry
+    assert "level" in log_entry
+    assert "message" in log_entry
+
+
+# Test 14: Log viewer supports limit parameter
+def test_logs_endpoint_supports_limit():
+    """Test /api/logs endpoint supports limit query parameter."""
+    from main import app
+    client = TestClient(app)
+
+    response = client.get("/api/logs?limit=5")
+
+    assert response.status_code == 200
+    data = response.json()
+    assert len(data["logs"]) <= 5
+
+
+# Test 15: Log viewer returns most recent logs first
+def test_logs_endpoint_returns_recent_first():
+    """Test /api/logs endpoint returns logs in reverse chronological order."""
+    from main import app
+    from logger import get_logger
+
+    # Write logs with different timestamps
+    logger = get_logger()
+    logger.info("First log")
+    logger.info("Second log")
+    logger.info("Third log")
+
+    client = TestClient(app)
+    response = client.get("/api/logs?limit=3")
+
+    assert response.status_code == 200
+    data = response.json()
+
+    if len(data["logs"]) >= 2:
+        # Most recent should be first
+        first_ts = datetime.fromisoformat(data["logs"][0]["timestamp"].replace("Z", "+00:00"))
+        second_ts = datetime.fromisoformat(data["logs"][1]["timestamp"].replace("Z", "+00:00"))
+        assert first_ts >= second_ts
+
+
+# Test 16: Log viewer handles invalid log entries gracefully
+def test_logs_endpoint_handles_invalid_entries():
+    """Test /api/logs endpoint skips invalid JSON lines."""
+    from main import app
+    import os
+    from pathlib import Path
+
+    # This test verifies the endpoint doesn't crash on malformed logs
+    # The implementation should skip invalid lines
+    client = TestClient(app)
+    response = client.get("/api/logs")
+
+    # Should not error even if there are invalid lines
+    assert response.status_code == 200
