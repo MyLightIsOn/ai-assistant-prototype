@@ -93,4 +93,12 @@ ai-workspace/
 
 # Database backups
 backups/
-/docs/
+
+# Google OAuth Credentials (sensitive)
+backend/google_oauth_client.json
+backend/google_user_credentials.json
+google_oauth_client.json
+google_user_credentials.json
+
+# Playwright MCP
+.playwright-mcp/

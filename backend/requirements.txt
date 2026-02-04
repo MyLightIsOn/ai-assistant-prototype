@@ -9,12 +9,20 @@ alembic>=1.13.0
 
 # Task scheduling
 apscheduler>=3.10.0
+pytz>=2025.1
 
 # Configuration
 python-dotenv>=1.0.0
 
 # HTTP client for external APIs
 requests>=2.31.0
+
+# Google Cloud APIs
+google-auth>=2.27.0
+google-auth-oauthlib>=1.2.0
+google-auth-httplib2>=0.2.0
+google-api-python-client>=2.115.0
+google-cloud-pubsub>=2.19.0
 
 # Password hashing
 bcrypt>=4.1.0
