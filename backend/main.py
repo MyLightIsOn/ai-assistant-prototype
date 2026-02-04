@@ -4,13 +4,21 @@ FastAPI backend for AI Assistant.
 Main application with WebSocket support for real-time communication.
 """
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect
-from fastapi.middleware.cors import CORSMiddleware
-from datetime import datetime, timezone
-from typing import List, Dict, Any
 import json
+import os
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import List, Dict, Any, Optional
+
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi.middleware.cors import CORSMiddleware
+
 from database import SessionLocal, engine
 from models import Base
+from logger import get_logger
+
+# Initialize logger
+logger = get_logger()
 
 # Create database tables
 Base.metadata.create_all(bind=engine)
@@ -62,9 +70,10 @@ class ConnectionManager:
                 await connection.send_json(message)
             except Exception as e:
                 # Connection might be closed, will be removed on next interaction
-                # Log error for debugging
-                print(f"Error broadcasting to client: {e}")
-                pass
+                logger.warning(
+                    "Error broadcasting to client",
+                    extra={"metadata": {"error": str(e), "message_type": message.get("type")}}
+                )
 
 
 # Create connection manager instance
@@ -102,6 +111,55 @@ async def health():
         "database": db_status,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+
+@app.get("/api/logs")
+async def get_logs(limit: int = Query(default=100, ge=1, le=1000)):
+    """
+    Get recent log entries from the structured JSON log file.
+
+    Args:
+        limit: Maximum number of log entries to return (1-1000, default: 100)
+
+    Returns:
+        JSON object with logs array containing parsed log entries
+    """
+    # Get log file path
+    backend_dir = Path(__file__).parent
+    project_root = backend_dir.parent
+    log_file_path = project_root / "ai-workspace" / "logs" / "ai_assistant.log"
+
+    logs = []
+
+    try:
+        if log_file_path.exists():
+            # Read log file
+            with open(log_file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            # Parse JSON log entries (most recent first)
+            for line in reversed(lines):
+                if len(logs) >= limit:
+                    break
+
+                line = line.strip()
+                if not line:
+                    continue
+
+                try:
+                    log_entry = json.loads(line)
+                    logs.append(log_entry)
+                except json.JSONDecodeError:
+                    # Skip invalid JSON lines
+                    continue
+
+    except Exception as e:
+        logger.error(
+            "Error reading log file",
+            extra={"metadata": {"error": str(e), "log_file": str(log_file_path)}}
+        )
+
+    return {"logs": logs}
 
 
 @app.websocket("/ws")
@@ -168,8 +226,13 @@ async def websocket_endpoint(websocket: WebSocket):
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
+        logger.info("WebSocket client disconnected")
     except Exception as e:
         # Log error and disconnect
+        logger.error(
+            "WebSocket error",
+            extra={"metadata": {"error": str(e), "error_type": type(e).__name__}}
+        )
         manager.disconnect(websocket)
         raise
 

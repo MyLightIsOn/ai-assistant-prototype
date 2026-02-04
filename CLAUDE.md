@@ -2,9 +2,20 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## ⚠️ CRITICAL: Documentation Policy
+
+**NEVER commit the `docs/` directory to git:**
+- This repository is PUBLIC
+- The `docs/` directory contains detailed architecture and implementation plans
+- These details must remain private until the system is verified and production-ready
+- The `docs/` directory is intentionally excluded in `.gitignore` and must stay that way
+- Only commit documentation when explicitly approved by the user
+
 ## Project Overview
 
-This is a personal AI assistant system that combines Claude Code with selective MCP integrations in a controlled environment. The project is currently in the planning/documentation phase - the actual frontend and backend code has not been implemented yet.
+This is a personal AI assistant system that combines Claude Code with selective MCP integrations in a controlled environment.
+
+**Current Status:** Phase 1 complete. Phase 2 backend infrastructure complete (PR #51 pending review).
 
 **Core Philosophy:**
 - Simplicity over feature complexity
@@ -15,10 +26,10 @@ This is a personal AI assistant system that combines Claude Code with selective 
 ## Repository Structure
 
 This is a **monorepo** containing:
-- `frontend/` - Next.js 14+ (App Router) + React + Tailwind CSS (not yet created)
-- `backend/` - Python FastAPI + Task Scheduler service (not yet created)
-- `ai-workspace/` - AI's working directory for memory, logs, and outputs (not yet created)
-- `docs/` - Comprehensive architecture and setup documentation
+- `frontend/` - Next.js 14+ (App Router) + React + Tailwind CSS
+- `backend/` - Python FastAPI + Task Scheduler service (Phase 2 complete)
+- `ai-workspace/` - AI's working directory for memory, logs, and outputs
+- `docs/` - Comprehensive architecture and setup documentation (**NEVER commit to git**)
 
 ## Key Architecture Decisions
 
