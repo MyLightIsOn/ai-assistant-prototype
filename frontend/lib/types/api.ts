@@ -93,7 +93,7 @@ export interface UpdateTaskInput {
 
 // WebSocket message types
 export interface WebSocketMessage {
-  type: 'terminal_output' | 'status_update' | 'execution_start' | 'execution_complete' | 'error';
+  type: 'terminal_output' | 'status_update' | 'execution_start' | 'execution_complete' | 'agent_started' | 'agent_completed' | 'agent_failed' | 'agent_output' | 'error';
   data: unknown;
 }
 
@@ -130,6 +130,44 @@ export interface ExecutionCompleteMessage extends WebSocketMessage {
     executionId: string;
     status: string;
     duration: number;
+    timestamp: string;
+  };
+}
+
+export interface AgentStartedMessage extends WebSocketMessage {
+  type: 'agent_started';
+  data: {
+    agent_name: string;
+    timestamp: string;
+  };
+}
+
+export interface AgentCompletedMessage extends WebSocketMessage {
+  type: 'agent_completed';
+  data: {
+    agent_name: string;
+    output: {
+      structured?: Record<string, any>;
+      narrative?: string;
+    };
+    timestamp: string;
+  };
+}
+
+export interface AgentFailedMessage extends WebSocketMessage {
+  type: 'agent_failed';
+  data: {
+    agent_name: string;
+    error: string;
+    timestamp: string;
+  };
+}
+
+export interface AgentOutputMessage extends WebSocketMessage {
+  type: 'agent_output';
+  data: {
+    agent_name: string;
+    content: string;
     timestamp: string;
   };
 }

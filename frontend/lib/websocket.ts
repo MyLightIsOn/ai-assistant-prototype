@@ -23,6 +23,10 @@ export type WebSocketMessageType =
   | 'task_updated'
   | 'task_created'
   | 'task_deleted'
+  | 'agent_started'
+  | 'agent_completed'
+  | 'agent_failed'
+  | 'agent_output'
   | 'error';
 
 export interface WebSocketMessage<T = unknown> {

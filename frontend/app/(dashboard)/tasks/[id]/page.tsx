@@ -15,6 +15,8 @@ import {
 import { Badge } from "@/components/ui/badge"
 import { Skeleton } from "@/components/ui/skeleton"
 import { TaskStatusBadge } from "@/components/tasks/TaskStatusBadge"
+import { MultiAgentProgress, Agent } from "@/components/executions/MultiAgentProgress"
+import { AgentOutputViewer, AgentOutput } from "@/components/executions/AgentOutputViewer"
 import {
   ChevronLeft,
   Edit,
@@ -27,8 +29,13 @@ import {
   AlertCircle,
 } from "lucide-react"
 import { toast } from "sonner"
-import { useEffect } from "react"
+import { useEffect, useState } from "react"
 import { formatDistanceToNow } from "@/lib/utils"
+import type {
+  AgentStartedMessage,
+  AgentCompletedMessage,
+  AgentFailedMessage
+} from "@/lib/types/api"
 
 export default function TaskDetailPage() {
   const params = useParams()
@@ -38,6 +45,32 @@ export default function TaskDetailPage() {
   const { data: task, isLoading: taskLoading, refetch: refetchTask } = useTask(taskId)
   const { data: executions, isLoading: executionsLoading, refetch: refetchExecutions } = useTaskExecutions(taskId)
   const { subscribe, isConnected } = useWebSocket({ autoConnect: true })
+
+  // Multi-agent state
+  const [agents, setAgents] = useState<Agent[]>([])
+  const [agentOutputs, setAgentOutputs] = useState<AgentOutput[]>([])
+
+  // Detect if this is a multi-agent task
+  const isMultiAgent = task?.metadata?.multi_agent !== undefined
+  const multiAgentConfig = task?.metadata?.multi_agent
+
+  // Initialize agents from config when task loads
+  useEffect(() => {
+    if (multiAgentConfig) {
+      const initialAgents: Agent[] = multiAgentConfig.agents.map(agent => ({
+        name: agent.name,
+        status: 'pending',
+        role: agent.role as Agent['role']
+      }))
+      setAgents(initialAgents)
+
+      const initialOutputs: AgentOutput[] = multiAgentConfig.agents.map(agent => ({
+        agentName: agent.name,
+        status: 'pending'
+      }))
+      setAgentOutputs(initialOutputs)
+    }
+  }, [multiAgentConfig])
 
   // Subscribe to WebSocket updates
   useEffect(() => {
@@ -56,9 +89,61 @@ export default function TaskDetailPage() {
       refetchExecutions()
     })
 
+    // Agent event handlers
+    const unsubscribeAgentStarted = subscribe('agent_started', (message) => {
+      const data = (message.data as AgentStartedMessage['data'])
+      setAgents(prev => prev.map(agent =>
+        agent.name === data.agent_name
+          ? { ...agent, status: 'running' }
+          : agent
+      ))
+      setAgentOutputs(prev => prev.map(output =>
+        output.agentName === data.agent_name
+          ? { ...output, status: 'running' }
+          : output
+      ))
+    })
+
+    const unsubscribeAgentCompleted = subscribe('agent_completed', (message) => {
+      const data = (message.data as AgentCompletedMessage['data'])
+      setAgents(prev => prev.map(agent =>
+        agent.name === data.agent_name
+          ? { ...agent, status: 'completed' }
+          : agent
+      ))
+      setAgentOutputs(prev => prev.map(output =>
+        output.agentName === data.agent_name
+          ? {
+              ...output,
+              status: 'completed',
+              structuredOutput: data.output.structured,
+              narrativeOutput: data.output.narrative
+            }
+          : output
+      ))
+    })
+
+    const unsubscribeAgentFailed = subscribe('agent_failed', (message) => {
+      const data = (message.data as AgentFailedMessage['data'])
+      setAgents(prev => prev.map(agent =>
+        agent.name === data.agent_name
+          ? { ...agent, status: 'failed' }
+          : agent
+      ))
+      setAgentOutputs(prev => prev.map(output =>
+        output.agentName === data.agent_name
+          ? { ...output, status: 'failed' }
+          : output
+      ))
+      toast.error(`Agent ${data.agent_name} failed: ${data.error}`)
+    })
+
     return () => {
       unsubscribe()
       unsubscribeStatus()
+      unsubscribeAgentStarted()
+      unsubscribeAgentCompleted()
+      unsubscribeAgentFailed()
     }
   }, [isConnected, subscribe, taskId, refetchTask, refetchExecutions])
 
@@ -235,6 +320,13 @@ export default function TaskDetailPage() {
           </CardContent>
         </Card>
       </div>
+
+      {isMultiAgent && agents.length > 0 && (
+        <div className="space-y-6">
+          <MultiAgentProgress agents={agents} />
+          <AgentOutputViewer agents={agentOutputs} />
+        </div>
+      )}
 
       <Card>
         <CardHeader>
