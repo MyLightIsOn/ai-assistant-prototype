@@ -69,8 +69,8 @@ export async function POST(request: NextRequest) {
     });
 
     // Sync with APScheduler via Python backend
+    const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
     try {
-      const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
       await fetch(`${backendUrl}/api/scheduler/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -79,6 +79,18 @@ export async function POST(request: NextRequest) {
     } catch (syncError) {
       console.error("Failed to sync with scheduler:", syncError);
       // Don't fail the request if sync fails - scheduler will sync on restart
+    }
+
+    // Trigger Calendar sync (non-blocking)
+    try {
+      await fetch(`${backendUrl}/api/calendar/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id }),
+      });
+    } catch (error) {
+      console.error("Calendar sync failed:", error);
+      // Non-blocking - task still created
     }
 
     return NextResponse.json({ task }, { status: 201 });
