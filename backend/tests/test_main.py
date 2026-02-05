@@ -291,3 +291,56 @@ def test_logs_endpoint_handles_invalid_entries():
 
     # Should not error even if there are invalid lines
     assert response.status_code == 200
+
+
+# Test 17: Calendar sync endpoint creates Calendar event
+def test_sync_task_endpoint_creates_calendar_event():
+    """Test POST /api/calendar/sync creates Calendar event."""
+    from unittest.mock import Mock, patch
+
+    with patch('main.get_calendar_sync') as mock_get_sync:
+        mock_sync = Mock()
+        mock_sync.sync_task_to_calendar.return_value = 'event_12345'
+        mock_get_sync.return_value = mock_sync
+
+        with patch('main.get_task_from_db') as mock_get_task:
+            mock_task = Mock()
+            mock_task.id = 'task_123'
+            mock_task.name = 'Test Task'
+            mock_get_task.return_value = mock_task
+
+            with patch('main.update_task_metadata') as mock_update:
+                from main import app
+                client = TestClient(app)
+
+                response = client.post(
+                    '/api/calendar/sync',
+                    json={'taskId': 'task_123'}
+                )
+
+                assert response.status_code == 200
+                assert response.json()['event_id'] == 'event_12345'
+                assert mock_sync.sync_task_to_calendar.called
+
+
+# Test 18: Delete task event endpoint
+def test_delete_task_event_endpoint():
+    """Test DELETE /api/calendar/sync/{task_id} removes event."""
+    from unittest.mock import Mock, patch
+
+    with patch('main.get_calendar_sync') as mock_get_sync:
+        mock_sync = Mock()
+        mock_get_sync.return_value = mock_sync
+
+        with patch('main.get_task_from_db') as mock_get_task:
+            mock_task = Mock()
+            mock_task.id = 'task_123'
+            mock_get_task.return_value = mock_task
+
+            from main import app
+            client = TestClient(app)
+
+            response = client.delete('/api/calendar/sync/task_123')
+
+            assert response.status_code == 200
+            assert mock_sync.delete_calendar_event.called
