@@ -195,11 +195,11 @@ class TaskScheduler:
                 executionId=execution.id,
                 type="task_start",
                 message=f"Task '{task.name}' started",
-                metadata_=json.dumps({
+                metadata_={
                     "task_id": task_id,
                     "command": task.command,
                     "args": task.args
-                })
+                }
             )
             db.add(log)
             db.commit()
@@ -229,10 +229,10 @@ class TaskScheduler:
                     executionId=execution.id,
                     type="task_complete" if exit_code == 0 else "task_error",
                     message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
-                    metadata_=json.dumps({
+                    metadata_={
                         "exit_code": exit_code,
                         "duration_ms": execution.duration
-                    })
+                    }
                 )
                 db.add(log)
                 db.commit()
@@ -258,10 +258,10 @@ class TaskScheduler:
                     executionId=execution.id,
                     type="error",
                     message=f"Task '{task.name}' failed with error: {str(e)}",
-                    metadata_=json.dumps({
+                    metadata_={
                         "error": str(e),
                         "error_type": type(e).__name__
-                    })
+                    }
                 )
                 db.add(log)
                 db.commit()
@@ -309,12 +309,12 @@ class TaskScheduler:
                             executionId=None,
                             type="task_retry",
                             message=f"Task {task_id} retry attempt {attempt + 1}/{max_attempts}",
-                            metadata_=json.dumps({
+                            metadata_={
                                 "task_id": task_id,
                                 "attempt": attempt,
                                 "next_attempt": attempt + 1,
                                 "backoff_seconds": backoff_delays[attempt - 1] if attempt <= len(backoff_delays) else 0
-                            })
+                            }
                         )
                         db.add(log)
                         db.commit()
