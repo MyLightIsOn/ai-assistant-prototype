@@ -1,4 +1,0 @@
-Total messages: 7 (Errors: 1, Warnings: 0)
-Returning 1 messages for level "error"
-
-[ERROR] Manifest: Line: 1, column: 1, Syntax error. @ http://localhost:3000/manifest.json:0
