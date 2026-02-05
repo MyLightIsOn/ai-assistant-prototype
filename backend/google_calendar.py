@@ -23,6 +23,7 @@ load_dotenv()
 CREDENTIALS_FILE = os.getenv('GOOGLE_APPLICATION_CREDENTIALS', 'google_user_credentials.json')
 SCOPES = ['https://www.googleapis.com/auth/calendar']
 CALENDAR_ID = os.getenv('GOOGLE_CALENDAR_ID', 'primary')
+USER_TIMEZONE = os.getenv('USER_TIMEZONE', 'America/Los_Angeles')
 
 # Priority to color mapping
 PRIORITY_COLORS = {
@@ -184,11 +185,11 @@ class CalendarSync:
             'description': description,
             'start': {
                 'dateTime': start_time.isoformat(),
-                'timeZone': 'America/Los_Angeles'  # TODO: Make configurable
+                'timeZone': USER_TIMEZONE
             },
             'end': {
                 'dateTime': end_time.isoformat(),
-                'timeZone': 'America/Los_Angeles'
+                'timeZone': USER_TIMEZONE
             },
             'colorId': PRIORITY_COLORS.get(task.priority, '10'),
             'reminders': {

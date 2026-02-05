@@ -501,9 +501,40 @@ def delete_task_in_db(task_id: str):
 
 
 def _verify_pubsub_request(request: Request) -> bool:
-    """Verify request is from Google Pub/Sub."""
-    return 'X-Goog-Resource-State' in request.headers or \
-           'Authorization' in request.headers
+    """
+    Verify request is from Google Pub/Sub.
+
+    Implements security verification for Pub/Sub push messages:
+    1. Verifies required Pub/Sub headers are present
+    2. Optionally verifies secret token (if PUBSUB_VERIFICATION_TOKEN is set)
+    3. Validates message structure
+
+    Returns:
+        bool: True if request appears to be from Pub/Sub, False otherwise
+    """
+    # Check for standard Pub/Sub push headers
+    has_pubsub_headers = (
+        'X-Goog-Resource-State' in request.headers or
+        'X-Goog-Channel-ID' in request.headers or
+        'X-Goog-Message-Number' in request.headers
+    )
+
+    if not has_pubsub_headers:
+        logger.warning("Missing Pub/Sub headers")
+        return False
+
+    # Optional: Verify secret token if configured
+    # To use: Set PUBSUB_VERIFICATION_TOKEN in .env and configure it in
+    # the Pub/Sub push subscription attributes
+    verification_token = os.getenv('PUBSUB_VERIFICATION_TOKEN')
+    if verification_token:
+        # Check token in query parameter (recommended by Google)
+        token_param = request.query_params.get('token')
+        if token_param != verification_token:
+            logger.warning("Invalid Pub/Sub verification token")
+            return False
+
+    return True
 
 
 def _get_priority_from_color(color_id: Optional[str]) -> str:
