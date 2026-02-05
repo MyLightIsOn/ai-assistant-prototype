@@ -11,18 +11,21 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request, BackgroundTasks
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request, BackgroundTasks, Depends
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
 from database import SessionLocal, engine
-from models import Base, Task
+from models import Base, Task, DigestSettings, DigestSettingsUpdate, DigestSettingsResponse
 from logger import get_logger
-from scheduler import TaskScheduler
+from scheduler import TaskScheduler, setup_digest_jobs
 from google_calendar import get_calendar_sync
+from digest_queries import get_success_rate, get_execution_trends
+from gmail_sender import get_gmail_sender
 import base64
 
 # Initialize logger
@@ -155,6 +158,83 @@ async def health():
         "scheduler": scheduler_status,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
+
+
+def get_db():
+    """Dependency for database session."""
+    db = SessionLocal()
+    try:
+        yield db
+    finally:
+        db.close()
+
+
+@app.get("/api/stats/success-rate")
+async def get_success_rate_endpoint(
+    days: int = Query(default=7, ge=1, le=365),
+    db: Session = Depends(get_db)
+):
+    """
+    Get task success rate for specified time period.
+
+    Args:
+        days: Number of days to calculate success rate for (1-365, default: 7)
+        db: Database session dependency
+
+    Returns:
+        JSON object with success rate statistics:
+        {
+            "success_rate": 85.5,
+            "total_executions": 100,
+            "successful": 85,
+            "failed": 15,
+            "period_days": 7
+        }
+    """
+    try:
+        result = get_success_rate(db, days)
+        return result
+    except Exception as e:
+        logger.error(
+            "Error calculating success rate",
+            extra={"metadata": {"error": str(e), "days": days}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to calculate success rate: {str(e)}")
+
+
+@app.get("/api/stats/execution-trends")
+async def get_execution_trends_endpoint(
+    days: int = Query(default=7, ge=1, le=30),
+    db: Session = Depends(get_db)
+):
+    """
+    Get daily execution trend data for charts.
+
+    Args:
+        days: Number of days to query (1-30, default: 7)
+        db: Database session dependency
+
+    Returns:
+        JSON array with daily execution statistics:
+        [
+            {
+                "date": "2026-02-01",
+                "successful": 10,
+                "failed": 2,
+                "total": 12
+            },
+            ...
+        ]
+    """
+    try:
+        result = get_execution_trends(db, days)
+        return result
+    except Exception as e:
+        logger.error(
+            "Error fetching execution trends",
+            extra={"metadata": {"error": str(e), "days": days}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to fetch execution trends: {str(e)}")
 
 
 @app.get("/api/logs")
@@ -789,3 +869,133 @@ async def websocket_endpoint(websocket: WebSocket):
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
+
+
+# ============================================================================
+# Digest Settings Endpoints
+# ============================================================================
+
+@app.get("/api/settings/digest", response_model=DigestSettingsResponse)
+async def get_digest_settings(db: Session = Depends(get_db)):
+    """
+    Get current digest email settings.
+
+    Returns:
+        DigestSettings object with current configuration
+    """
+    try:
+        settings = db.query(DigestSettings).first()
+        if not settings:
+            raise HTTPException(status_code=404, detail="Digest settings not found. Run scheduler sync first.")
+        return settings
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error retrieving digest settings",
+            extra={"metadata": {"error": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to retrieve settings: {str(e)}")
+
+
+@app.put("/api/settings/digest", response_model=DigestSettingsResponse)
+async def update_digest_settings(
+    settings_update: DigestSettingsUpdate,
+    db: Session = Depends(get_db)
+):
+    """
+    Update digest email settings and reschedule jobs.
+
+    Args:
+        settings_update: Updated settings fields
+
+    Returns:
+        Updated DigestSettings object
+    """
+    try:
+        settings = db.query(DigestSettings).first()
+        if not settings:
+            raise HTTPException(status_code=404, detail="Digest settings not found")
+
+        # Update fields
+        update_data = settings_update.model_dump(exclude_unset=True)
+        for field, value in update_data.items():
+            setattr(settings, field, value)
+
+        settings.updatedAt = datetime.now(timezone.utc)
+        db.commit()
+        db.refresh(settings)
+
+        # Reschedule jobs with new settings
+        setup_digest_jobs(task_scheduler.scheduler, db)
+
+        logger.info(
+            "Digest settings updated",
+            extra={"metadata": {"updated_fields": list(update_data.keys())}}
+        )
+
+        return settings
+    except HTTPException:
+        raise
+    except Exception as e:
+        db.rollback()
+        logger.error(
+            "Error updating digest settings",
+            extra={"metadata": {"error": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to update settings: {str(e)}")
+
+
+@app.post("/api/settings/digest/test")
+async def send_test_digest(
+    digest_type: str = Query(..., regex="^(daily|weekly)$"),
+    db: Session = Depends(get_db)
+):
+    """
+    Send test digest email immediately.
+
+    Args:
+        digest_type: Type of digest to send (daily or weekly)
+
+    Returns:
+        Status message
+    """
+    try:
+        settings = db.query(DigestSettings).first()
+        if not settings:
+            raise HTTPException(status_code=404, detail="Digest settings not found")
+
+        sender = get_gmail_sender()
+
+        if digest_type == "daily":
+            message_id = sender.send_daily_digest(db, settings.recipientEmail)
+            logger.info(
+                "Test daily digest sent",
+                extra={"metadata": {"recipient": settings.recipientEmail, "message_id": message_id}}
+            )
+            return {
+                "status": "sent",
+                "type": "daily",
+                "recipient": settings.recipientEmail,
+                "message_id": message_id
+            }
+        else:
+            message_id = sender.send_weekly_summary(db, settings.recipientEmail)
+            logger.info(
+                "Test weekly summary sent",
+                extra={"metadata": {"recipient": settings.recipientEmail, "message_id": message_id}}
+            )
+            return {
+                "status": "sent",
+                "type": "weekly",
+                "recipient": settings.recipientEmail,
+                "message_id": message_id
+            }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error sending test digest",
+            extra={"metadata": {"error": str(e), "digest_type": digest_type}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to send test digest: {str(e)}")

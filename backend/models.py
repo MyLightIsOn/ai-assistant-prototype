@@ -141,6 +141,21 @@ class AiMemory(Base):
     updatedAt = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
 
 
+class DigestSettings(Base):
+    """DigestSettings model - mirrors Prisma DigestSettings model."""
+    __tablename__ = "DigestSettings"
+
+    id = Column(String, primary_key=True)
+    dailyEnabled = Column(Boolean, nullable=False, default=True)
+    dailyTime = Column(String, nullable=False, default="20:00")  # "HH:MM" format (24-hour)
+    weeklyEnabled = Column(Boolean, nullable=False, default=True)
+    weeklyDay = Column(String, nullable=False, default="monday")  # lowercase day name
+    weeklyTime = Column(String, nullable=False, default="09:00")  # "HH:MM" format (24-hour)
+    recipientEmail = Column(String, nullable=False)
+    createdAt = Column(DateTime, nullable=False, default=datetime.utcnow)
+    updatedAt = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
+
+
 # ============================================================================
 # Pydantic Schemas (API Layer)
 # ============================================================================
@@ -278,6 +293,39 @@ class AiMemoryUpdate(BaseModel):
 
 class AiMemoryResponse(AiMemoryCreate):
     """Schema for AiMemory responses."""
+    id: str
+    createdAt: datetime
+    updatedAt: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DigestSettingsBase(BaseModel):
+    """Base schema for DigestSettings data."""
+    dailyEnabled: bool = True
+    dailyTime: str = Field(default="20:00", pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
+    weeklyEnabled: bool = True
+    weeklyDay: str = Field(default="monday", pattern=r"^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")
+    weeklyTime: str = Field(default="09:00", pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
+    recipientEmail: str = Field(..., pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DigestSettingsUpdate(BaseModel):
+    """Schema for updating DigestSettings."""
+    dailyEnabled: Optional[bool] = None
+    dailyTime: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
+    weeklyEnabled: Optional[bool] = None
+    weeklyDay: Optional[str] = Field(None, pattern=r"^(monday|tuesday|wednesday|thursday|friday|saturday|sunday)$")
+    weeklyTime: Optional[str] = Field(None, pattern=r"^([01]\d|2[0-3]):([0-5]\d)$")
+    recipientEmail: Optional[str] = Field(None, pattern=r"^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class DigestSettingsResponse(DigestSettingsBase):
+    """Schema for DigestSettings responses."""
     id: str
     createdAt: datetime
     updatedAt: datetime

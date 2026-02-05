@@ -284,6 +284,162 @@ class TestDailyDigestQueries:
         assert result['upcoming_tasks'] == []
 
 
+class TestSuccessRateQueries:
+    """Test database queries for success rate calculation."""
+
+    def test_empty_database_returns_zero_success_rate(self, db):
+        """Test that success rate is 0 when no executions exist."""
+        from digest_queries import get_success_rate
+
+        result = get_success_rate(db, days=7)
+
+        assert result['success_rate'] == 0.0
+        assert result['total_executions'] == 0
+        assert result['successful'] == 0
+        assert result['failed'] == 0
+        assert result['period_days'] == 7
+
+    def test_100_percent_success_rate_all_completed(self, db, sample_tasks):
+        """Test that success rate is 100% when all executions completed."""
+        from digest_queries import get_success_rate
+        now = datetime.now()
+
+        # Create 5 successful executions in last 7 days
+        for i in range(5):
+            exec = TaskExecution(
+                id=f'exec_success_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_success_rate(db, days=7)
+
+        assert result['success_rate'] == 100.0
+        assert result['total_executions'] == 5
+        assert result['successful'] == 5
+        assert result['failed'] == 0
+
+    def test_0_percent_success_rate_all_failed(self, db, sample_tasks):
+        """Test that success rate is 0% when all executions failed."""
+        from digest_queries import get_success_rate
+        now = datetime.now()
+
+        # Create 3 failed executions in last 7 days
+        for i in range(3):
+            exec = TaskExecution(
+                id=f'exec_fail_{i}',
+                taskId='task_1',
+                status='failed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-1),
+                output='Error',
+                duration=1000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_success_rate(db, days=7)
+
+        assert result['success_rate'] == 0.0
+        assert result['total_executions'] == 3
+        assert result['successful'] == 0
+        assert result['failed'] == 3
+
+    def test_mixed_results_calculate_correctly(self, db, sample_tasks):
+        """Test that success rate calculates correctly with mixed results."""
+        from digest_queries import get_success_rate
+        now = datetime.now()
+
+        # Create 7 successful and 3 failed executions (70% success rate)
+        for i in range(7):
+            exec = TaskExecution(
+                id=f'exec_success_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(hours=i),
+                completedAt=now - timedelta(hours=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+
+        for i in range(3):
+            exec = TaskExecution(
+                id=f'exec_fail_{i}',
+                taskId='task_2',
+                status='failed',
+                startedAt=now - timedelta(hours=i),
+                completedAt=now - timedelta(hours=i, minutes=-1),
+                output='Error',
+                duration=1000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_success_rate(db, days=7)
+
+        assert result['success_rate'] == 70.0
+        assert result['total_executions'] == 10
+        assert result['successful'] == 7
+        assert result['failed'] == 3
+
+    def test_time_window_filters_correctly(self, db, sample_tasks):
+        """Test that time window filters correctly (only last N days)."""
+        from digest_queries import get_success_rate
+        now = datetime.now()
+
+        # Create 3 executions within last 7 days
+        for i in range(3):
+            exec = TaskExecution(
+                id=f'exec_recent_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i+1),
+                completedAt=now - timedelta(days=i+1, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+
+        # Create 2 executions outside 7-day window (8 and 10 days ago)
+        for i in [8, 10]:
+            exec = TaskExecution(
+                id=f'exec_old_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-5),
+                output='Old success',
+                duration=5000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_success_rate(db, days=7)
+
+        # Should only count the 3 recent executions
+        assert result['total_executions'] == 3
+        assert result['successful'] == 3
+        assert result['failed'] == 0
+
+    def test_division_by_zero_handling(self, db, sample_tasks):
+        """Test that function handles division by zero gracefully."""
+        from digest_queries import get_success_rate
+
+        # No executions in database
+        result = get_success_rate(db, days=7)
+
+        # Should return 0, not raise an exception
+        assert result['success_rate'] == 0.0
+        assert result['total_executions'] == 0
+
+
 class TestWeeklySummaryQueries:
     """Test database queries for weekly summary email."""
 
@@ -343,3 +499,259 @@ class TestWeeklySummaryQueries:
         assert result['failure_count'] == 0
         assert result['top_failures'] == []
         assert result['avg_duration_ms'] == 0
+
+
+class TestExecutionTrendsQueries:
+    """Test database queries for execution trends chart."""
+
+    def test_empty_database_returns_empty_trend_data(self, db):
+        """Test that empty database returns 7 days of zero counts."""
+        from digest_queries import get_execution_trends
+
+        result = get_execution_trends(db, days=7)
+
+        # Should return 7 days of data
+        assert len(result) == 7
+
+        # All days should have zero counts
+        for day_data in result:
+            assert day_data['successful'] == 0
+            assert day_data['failed'] == 0
+            assert day_data['total'] == 0
+            assert 'date' in day_data
+
+    def test_single_day_with_executions_returns_correct_counts(self, db, sample_tasks):
+        """Test that a single day with executions returns correct counts."""
+        from digest_queries import get_execution_trends
+        now = datetime.now()
+
+        # Create 3 successful and 2 failed executions today
+        for i in range(3):
+            exec = TaskExecution(
+                id=f'exec_success_today_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(hours=i),
+                completedAt=now - timedelta(hours=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+
+        for i in range(2):
+            exec = TaskExecution(
+                id=f'exec_fail_today_{i}',
+                taskId='task_1',
+                status='failed',
+                startedAt=now - timedelta(hours=i+3),
+                completedAt=now - timedelta(hours=i+3, minutes=-1),
+                output='Error',
+                duration=1000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_execution_trends(db, days=7)
+
+        # Find today's data
+        today_str = now.strftime('%Y-%m-%d')
+        today_data = next((d for d in result if d['date'] == today_str), None)
+
+        assert today_data is not None
+        assert today_data['successful'] == 3
+        assert today_data['failed'] == 2
+        assert today_data['total'] == 5
+
+    def test_multiple_days_aggregate_correctly(self, db, sample_tasks):
+        """Test that multiple days aggregate correctly."""
+        from digest_queries import get_execution_trends
+        now = datetime.now()
+
+        # Create executions across 3 different days
+        # Day 0 (today): 2 successful, 1 failed
+        for i in range(2):
+            exec = TaskExecution(
+                id=f'exec_day0_success_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(hours=i),
+                completedAt=now - timedelta(hours=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+
+        exec = TaskExecution(
+            id='exec_day0_fail',
+            taskId='task_1',
+            status='failed',
+            startedAt=now - timedelta(hours=2),
+            completedAt=now - timedelta(hours=2, minutes=-1),
+            output='Error',
+            duration=1000
+        )
+        db.add(exec)
+
+        # Day 2: 1 successful, 0 failed
+        exec = TaskExecution(
+            id='exec_day2_success',
+            taskId='task_1',
+            status='completed',
+            startedAt=now - timedelta(days=2, hours=12),
+            completedAt=now - timedelta(days=2, hours=12, minutes=-5),
+            output='Success',
+            duration=5000
+        )
+        db.add(exec)
+
+        # Day 4: 0 successful, 2 failed
+        for i in range(2):
+            exec = TaskExecution(
+                id=f'exec_day4_fail_{i}',
+                taskId='task_1',
+                status='failed',
+                startedAt=now - timedelta(days=4, hours=i),
+                completedAt=now - timedelta(days=4, hours=i, minutes=-1),
+                output='Error',
+                duration=1000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_execution_trends(db, days=7)
+
+        # Check day 0 (today)
+        day0_str = now.strftime('%Y-%m-%d')
+        day0_data = next((d for d in result if d['date'] == day0_str), None)
+        assert day0_data['successful'] == 2
+        assert day0_data['failed'] == 1
+        assert day0_data['total'] == 3
+
+        # Check day 2 (use the actual execution time to get correct date)
+        day2_execution_time = now - timedelta(days=2, hours=12)
+        day2_str = day2_execution_time.strftime('%Y-%m-%d')
+        day2_data = next((d for d in result if d['date'] == day2_str), None)
+        assert day2_data['successful'] == 1
+        assert day2_data['failed'] == 0
+        assert day2_data['total'] == 1
+
+        # Check day 4 (use the actual execution time to get correct date)
+        day4_execution_time = now - timedelta(days=4, hours=0)
+        day4_str = day4_execution_time.strftime('%Y-%m-%d')
+        day4_data = next((d for d in result if d['date'] == day4_str), None)
+        assert day4_data['successful'] == 0
+        assert day4_data['failed'] == 2
+        assert day4_data['total'] == 2
+
+    def test_missing_dates_filled_with_zeros(self, db, sample_tasks):
+        """Test that missing dates are filled with zero counts."""
+        from digest_queries import get_execution_trends
+        now = datetime.now()
+
+        # Create execution only on day 0 (today)
+        exec = TaskExecution(
+            id='exec_today',
+            taskId='task_1',
+            status='completed',
+            startedAt=now,
+            completedAt=now + timedelta(minutes=5),
+            output='Success',
+            duration=5000
+        )
+        db.add(exec)
+        db.commit()
+
+        result = get_execution_trends(db, days=7)
+
+        # Should have 7 days of data
+        assert len(result) == 7
+
+        # Find days with no executions (should have zeros)
+        yesterday_str = (now - timedelta(days=1)).strftime('%Y-%m-%d')
+        yesterday_data = next((d for d in result if d['date'] == yesterday_str), None)
+
+        assert yesterday_data is not None
+        assert yesterday_data['successful'] == 0
+        assert yesterday_data['failed'] == 0
+        assert yesterday_data['total'] == 0
+
+    def test_date_range_filtering_works(self, db, sample_tasks):
+        """Test that date range filtering works (last N days only)."""
+        from digest_queries import get_execution_trends
+        now = datetime.now()
+
+        # Create executions within 7-day window
+        for i in range(5):
+            exec = TaskExecution(
+                id=f'exec_recent_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+
+        # Create executions outside 7-day window (8 and 10 days ago)
+        for i in [8, 10]:
+            exec = TaskExecution(
+                id=f'exec_old_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-5),
+                output='Old success',
+                duration=5000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_execution_trends(db, days=7)
+
+        # Should return exactly 7 days
+        assert len(result) == 7
+
+        # All returned dates should be within last 7 days
+        dates = [datetime.strptime(d['date'], '%Y-%m-%d') for d in result]
+        oldest_date = min(dates)
+        newest_date = max(dates)
+
+        # Oldest date should be 6 days ago (7 days total including today)
+        expected_oldest = (now - timedelta(days=6)).replace(hour=0, minute=0, second=0, microsecond=0)
+        assert oldest_date.date() == expected_oldest.date()
+
+        # Newest date should be today
+        assert newest_date.date() == now.date()
+
+        # Should not include data from 8 or 10 days ago
+        total_count = sum(d['total'] for d in result)
+        assert total_count == 5  # Only the 5 recent executions
+
+    def test_dates_returned_in_chronological_order(self, db, sample_tasks):
+        """Test that dates are returned in chronological order (oldest first)."""
+        from digest_queries import get_execution_trends
+        now = datetime.now()
+
+        # Create some executions
+        for i in range(3):
+            exec = TaskExecution(
+                id=f'exec_{i}',
+                taskId='task_1',
+                status='completed',
+                startedAt=now - timedelta(days=i),
+                completedAt=now - timedelta(days=i, minutes=-5),
+                output='Success',
+                duration=5000
+            )
+            db.add(exec)
+        db.commit()
+
+        result = get_execution_trends(db, days=7)
+
+        # Convert dates to datetime objects for comparison
+        dates = [datetime.strptime(d['date'], '%Y-%m-%d') for d in result]
+
+        # Check that dates are in ascending order (oldest first)
+        for i in range(len(dates) - 1):
+            assert dates[i] <= dates[i + 1], "Dates should be in chronological order"

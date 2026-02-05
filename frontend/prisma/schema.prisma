@@ -90,3 +90,15 @@ model AiMemory {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 }
+
+model DigestSettings {
+  id                  String   @id @default(cuid())
+  dailyEnabled        Boolean  @default(true)
+  dailyTime           String   @default("20:00")
+  weeklyEnabled       Boolean  @default(true)
+  weeklyDay           String   @default("monday")
+  weeklyTime          String   @default("09:00")
+  recipientEmail      String
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}

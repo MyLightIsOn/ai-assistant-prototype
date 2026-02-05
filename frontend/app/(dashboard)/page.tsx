@@ -2,6 +2,7 @@ import { StatsOverview } from "@/components/dashboard/StatsOverview"
 import { RecentActivity } from "@/components/dashboard/RecentActivity"
 import { UpcomingTasks } from "@/components/dashboard/UpcomingTasks"
 import { QuickActions } from "@/components/dashboard/QuickActions"
+import { ExecutionTrendsChart } from "@/components/dashboard/ExecutionTrendsChart"
 
 export default function DashboardPage() {
   return (
@@ -24,6 +25,9 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       <QuickActions />
+
+      {/* Execution Trends Chart */}
+      <ExecutionTrendsChart />
     </div>
   )
 }

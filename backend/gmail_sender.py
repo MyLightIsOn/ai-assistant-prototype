@@ -213,17 +213,21 @@ class GmailSender:
             body_text=text
         )
 
-    def send_daily_digest(self, db, date: datetime) -> str:
+    def send_daily_digest(self, db, recipient_email: str, date: datetime = None) -> str:
         """
         Send daily digest email with task statistics.
 
         Args:
             db: SQLAlchemy database session
-            date: Date for the digest
+            recipient_email: Email address to send to
+            date: Date for the digest (defaults to now)
 
         Returns:
             Gmail message ID
         """
+        if date is None:
+            date = datetime.now()
+
         # Query database for real statistics
         stats = get_daily_digest_data(db, date)
 
@@ -242,24 +246,31 @@ class GmailSender:
         # Send email
         subject = f"📊 AI Assistant Daily Summary - {digest_data['date']}"
         return self.send_email(
-            to=RECIPIENT_EMAIL,
+            to=recipient_email,
             subject=subject,
             body_html=html,
             body_text=text
         )
 
-    def send_weekly_summary(self, db, week_start: datetime) -> str:
+    def send_weekly_summary(self, db, recipient_email: str, week_start: datetime = None) -> str:
         """
         Send weekly summary email with task statistics.
 
         Args:
             db: SQLAlchemy database session
-            week_start: Start date of the week
+            recipient_email: Email address to send to
+            week_start: Start date of the week (defaults to Monday of current week)
 
         Returns:
             Gmail message ID
         """
         from datetime import timedelta
+
+        if week_start is None:
+            today = datetime.now()
+            week_start = today - timedelta(days=today.weekday())
+            week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
         week_end = week_start + timedelta(days=6)
 
         # Query database for real statistics
@@ -282,7 +293,7 @@ class GmailSender:
         # Send email
         subject = f"📈 AI Assistant Weekly Report - Week {week_start.strftime('%Y-%m-%d')}"
         return self.send_email(
-            to=RECIPIENT_EMAIL,
+            to=recipient_email,
             subject=subject,
             body_html=html,
             body_text=text

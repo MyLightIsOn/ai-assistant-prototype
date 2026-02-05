@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { Bell, Database, Lock, User } from "lucide-react";
+import { DigestSettings } from "@/components/settings/DigestSettings";
 
 export default function SettingsPage() {
   return (
@@ -92,6 +93,9 @@ export default function SettingsPage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Email Digests */}
+        <DigestSettings />
 
         {/* Database Settings */}
         <Card>
