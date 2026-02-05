@@ -439,8 +439,8 @@ async def test_retry_logic_succeeds_on_second_attempt(engine, db_session, sample
     # Verify only 2 attempts were made
     assert attempt_count == 2
 
-    # Verify execution completed successfully
-    execution = db_session.query(TaskExecution).filter_by(taskId=sample_task.id).first()
+    # Verify execution completed successfully (get the latest execution)
+    execution = db_session.query(TaskExecution).filter_by(taskId=sample_task.id).order_by(TaskExecution.startedAt.desc()).first()
     assert execution is not None
     assert execution.status == "completed"
 
