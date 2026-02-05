@@ -18,9 +18,9 @@ from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 from sqlalchemy.engine import Engine
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy.orm import sessionmaker, Session
 
-from models import Task, TaskExecution, ActivityLog
+from models import Task, TaskExecution, ActivityLog, DigestSettings
 from database import get_db
 from logger import get_logger
 from executor import execute_task_wrapper
@@ -159,6 +159,9 @@ class TaskScheduler:
                     db.commit()
 
             logger.info(f"Synchronized {len(enabled_tasks)} tasks to scheduler")
+
+            # Setup digest email jobs
+            setup_digest_jobs(self.scheduler, db)
 
         finally:
             db.close()
@@ -392,3 +395,145 @@ def execute_task_wrapper(engine: Engine, task_id: str):
         loop.run_until_complete(scheduler.execute_task_with_retry(task_id))
     finally:
         loop.close()
+
+
+# ============================================================================
+# Digest Email Scheduling
+# ============================================================================
+
+def setup_digest_jobs(scheduler: BackgroundScheduler, db: Session):
+    """
+    Configure digest email jobs from database settings.
+
+    This function:
+    - Creates default settings if none exist
+    - Schedules daily and weekly digest jobs based on settings
+    - Uses APScheduler CronTrigger for precise scheduling
+
+    Args:
+        scheduler: APScheduler BackgroundScheduler instance
+        db: Database session
+    """
+    import os
+    import uuid
+
+    # Get or create settings
+    settings = db.query(DigestSettings).first()
+
+    if not settings:
+        # Create default settings
+        settings = DigestSettings(
+            id=str(uuid.uuid4()),
+            dailyEnabled=True,
+            dailyTime="20:00",
+            weeklyEnabled=True,
+            weeklyDay="monday",
+            weeklyTime="09:00",
+            recipientEmail=os.getenv("USER_EMAIL", "user@example.com")
+        )
+        db.add(settings)
+        db.commit()
+        db.refresh(settings)
+        logger.info("Created default DigestSettings")
+
+    # Day name to number mapping (APScheduler uses 0=Monday)
+    day_map = {
+        "monday": 0,
+        "tuesday": 1,
+        "wednesday": 2,
+        "thursday": 3,
+        "friday": 4,
+        "saturday": 5,
+        "sunday": 6
+    }
+
+    # Schedule daily digest job
+    if settings.dailyEnabled:
+        hour, minute = settings.dailyTime.split(":")
+        from pytz import UTC
+        scheduler.add_job(
+            send_daily_digest_job,
+            CronTrigger(hour=int(hour), minute=int(minute), timezone=UTC),
+            id="daily_digest",
+            name="Daily Digest Email",
+            replace_existing=True
+        )
+        logger.info(f"Scheduled daily digest job at {settings.dailyTime}")
+
+    # Schedule weekly digest job
+    if settings.weeklyEnabled:
+        hour, minute = settings.weeklyTime.split(":")
+        day_of_week = day_map[settings.weeklyDay.lower()]
+        from pytz import UTC
+        scheduler.add_job(
+            send_weekly_digest_job,
+            CronTrigger(
+                day_of_week=day_of_week,
+                hour=int(hour),
+                minute=int(minute),
+                timezone=UTC
+            ),
+            id="weekly_digest",
+            name="Weekly Digest Email",
+            replace_existing=True
+        )
+        logger.info(f"Scheduled weekly digest job on {settings.weeklyDay} at {settings.weeklyTime}")
+
+
+def send_daily_digest_job():
+    """
+    Scheduled job for sending daily digest email.
+
+    This is a module-level function that can be pickled for APScheduler.
+    It checks if daily digest is enabled and sends the email.
+    """
+    from database import SessionLocal
+    from gmail_sender import get_gmail_sender
+    from datetime import datetime
+
+    db = SessionLocal()
+    try:
+        settings = db.query(DigestSettings).first()
+        if settings and settings.dailyEnabled:
+            logger.info(f"Sending daily digest to {settings.recipientEmail}")
+            sender = get_gmail_sender()
+            sender.send_daily_digest(db, settings.recipientEmail, datetime.now())
+            logger.info("Daily digest sent successfully")
+        else:
+            logger.info("Daily digest disabled, skipping")
+    except Exception as e:
+        logger.error(f"Failed to send daily digest: {e}")
+    finally:
+        db.close()
+
+
+def send_weekly_digest_job():
+    """
+    Scheduled job for sending weekly summary email.
+
+    This is a module-level function that can be pickled for APScheduler.
+    It checks if weekly digest is enabled and sends the email.
+    """
+    from database import SessionLocal
+    from gmail_sender import get_gmail_sender
+    from datetime import datetime, timedelta
+
+    db = SessionLocal()
+    try:
+        settings = db.query(DigestSettings).first()
+        if settings and settings.weeklyEnabled:
+            # Calculate week start (Monday of current week)
+            today = datetime.now()
+            week_start = today - timedelta(days=today.weekday())
+            week_start = week_start.replace(hour=0, minute=0, second=0, microsecond=0)
+
+            logger.info(f"Sending weekly summary to {settings.recipientEmail}")
+            sender = get_gmail_sender()
+            sender.send_weekly_summary(db, settings.recipientEmail, week_start)
+            logger.info("Weekly summary sent successfully")
+        else:
+            logger.info("Weekly digest disabled, skipping")
+    except Exception as e:
+        logger.error(f"Failed to send weekly summary: {e}")
+    finally:
+        db.close()

@@ -1,6 +1,7 @@
 "use client"
 
 import { useMemo } from "react"
+import { useQuery } from "@tanstack/react-query"
 import { useTasks } from "@/lib/hooks/useTasks"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
@@ -15,6 +16,17 @@ import { formatDistanceToNow } from "@/lib/utils"
 
 export function StatsOverview() {
   const { data: tasks, isLoading } = useTasks()
+
+  // Fetch success rate from API
+  const { data: successRateData } = useQuery({
+    queryKey: ['stats', 'success-rate', 7],
+    queryFn: async () => {
+      const res = await fetch('/api/stats/success-rate?days=7')
+      if (!res.ok) throw new Error('Failed to fetch success rate')
+      return res.json()
+    },
+    refetchInterval: 60000, // Refresh every minute
+  })
 
   const stats = useMemo(() => {
     if (!tasks) {
@@ -39,16 +51,8 @@ export function StatsOverview() {
       return lastRunDate >= today
     }).length
 
-    // Calculate success rate (last 7 days)
-    // For now, we'll use a simplified calculation based on lastRun presence
-    // In production, this would query TaskExecution table
-    const sevenDaysAgo = new Date()
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-    const recentTasks = tasks.filter(task => {
-      if (!task.lastRun) return false
-      return new Date(task.lastRun) >= sevenDaysAgo
-    })
-    const successRate = recentTasks.length > 0 ? 95 : 0 // Placeholder
+    // Get success rate from API (real data from TaskExecution table)
+    const successRate = successRateData?.success_rate ?? 0
 
     // Find next scheduled task
     const enabledTasks = tasks.filter(task => task.enabled && task.nextRun)
