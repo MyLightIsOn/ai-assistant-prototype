@@ -150,12 +150,10 @@ class CalendarSync:
     def _get_event_id_from_task(self, task) -> Optional[str]:
         """Extract Calendar event ID from task metadata."""
         try:
-            if isinstance(task.metadata, str):
-                metadata = json.loads(task.metadata) if task.metadata else {}
-            else:
-                metadata = task.metadata or {}
+            # JSON column handles deserialization automatically
+            metadata = task.task_metadata or {}
             return metadata.get('calendarEventId')
-        except (json.JSONDecodeError, AttributeError):
+        except AttributeError:
             return None
 
     def _build_event_from_task(self, task) -> Dict:

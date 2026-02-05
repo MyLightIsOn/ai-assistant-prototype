@@ -9,7 +9,7 @@ from datetime import datetime
 from typing import Optional, List
 
 from sqlalchemy import (
-    Column, String, DateTime, Boolean, Integer, ForeignKey, Text
+    Column, String, DateTime, Boolean, Integer, ForeignKey, Text, JSON
 )
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field, ConfigDict
@@ -51,7 +51,11 @@ class Session(Base):
 
 
 class Task(Base):
-    """Task model - mirrors Prisma Task model."""
+    """Task model - mirrors Prisma Task model.
+
+    Note: The 'metadata' column is mapped to 'task_metadata' attribute in Python
+    to avoid conflict with SQLAlchemy's reserved 'metadata' attribute.
+    """
     __tablename__ = "Task"
 
     id = Column(String, primary_key=True)
@@ -64,6 +68,7 @@ class Task(Base):
     enabled = Column(Boolean, nullable=False, default=True)
     priority = Column(String, nullable=False, default="default")
     notifyOn = Column(String, nullable=False, default="completion,error")
+    task_metadata = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
     createdAt = Column(DateTime, nullable=False, default=datetime.utcnow)
     updatedAt = Column(DateTime, nullable=False, default=datetime.utcnow, onupdate=datetime.utcnow)
     lastRun = Column(DateTime, nullable=True)
@@ -103,7 +108,7 @@ class ActivityLog(Base):
     executionId = Column(String, ForeignKey("TaskExecution.id"), nullable=True)
     type = Column(String, nullable=False)  # "task_start", "task_complete", "notification_sent", "error"
     message = Column(String, nullable=False)
-    metadata_ = Column("metadata", Text, nullable=True)  # JSON string, mapped from 'metadata' column
+    metadata_ = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
     createdAt = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     # Relationships

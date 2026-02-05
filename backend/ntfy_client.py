@@ -186,7 +186,7 @@ def log_notification_to_db(
             id=f"log_{datetime.now(timezone.utc).timestamp()}_{os.urandom(4).hex()}",
             type=type,
             message=message,
-            metadata_=json.dumps(metadata) if metadata else None,
+            metadata_=metadata,
             createdAt=datetime.now(timezone.utc)
         )
 

@@ -2,6 +2,7 @@
 import pytest
 from unittest.mock import Mock, patch, MagicMock
 import base64
+from datetime import datetime
 from gmail_sender import GmailSender, get_gmail_sender
 
 
@@ -164,3 +165,67 @@ def test_handles_gmail_api_errors(sender, mock_gmail_service):
         )
 
     assert 'Gmail API error' in str(exc_info.value)
+
+
+def test_send_daily_digest_with_database(sender, mock_gmail_service):
+    """Test send_daily_digest queries database and sends email."""
+    # Mock database session
+    mock_db = Mock()
+
+    # Mock the query results
+    with patch('gmail_sender.get_daily_digest_data') as mock_query:
+        mock_query.return_value = {
+            'total_tasks': 10,
+            'successful': 8,
+            'failed': 2,
+            'success_rate': 80,
+            'upcoming_tasks': [
+                {'name': 'Task 1', 'time': '2026-02-06 08:00:00', 'description': 'Test', 'priority': 'default'}
+            ]
+        }
+
+        mock_gmail_service.users().messages().send().execute.return_value = {
+            'id': 'msg_digest_123'
+        }
+
+        message_id = sender.send_daily_digest(mock_db, datetime.now())
+
+        # Verify query was called with correct parameters
+        mock_query.assert_called_once()
+        assert mock_query.call_args[0][0] == mock_db
+
+        # Verify email was sent
+        assert message_id == 'msg_digest_123'
+        assert mock_gmail_service.users().messages().send.called
+
+
+def test_send_weekly_summary_with_database(sender, mock_gmail_service):
+    """Test send_weekly_summary queries database and sends email."""
+    # Mock database session
+    mock_db = Mock()
+
+    # Mock the query results
+    with patch('gmail_sender.get_weekly_summary_data') as mock_query:
+        mock_query.return_value = {
+            'total_executions': 50,
+            'success_count': 45,
+            'failure_count': 5,
+            'top_failures': [
+                {'task': 'Failed Task', 'count': 3}
+            ],
+            'avg_duration_ms': 2500
+        }
+
+        mock_gmail_service.users().messages().send().execute.return_value = {
+            'id': 'msg_summary_123'
+        }
+
+        message_id = sender.send_weekly_summary(mock_db, datetime.now())
+
+        # Verify query was called with correct parameters
+        mock_query.assert_called_once()
+        assert mock_query.call_args[0][0] == mock_db
+
+        # Verify email was sent
+        assert message_id == 'msg_summary_123'
+        assert mock_gmail_service.users().messages().send.called

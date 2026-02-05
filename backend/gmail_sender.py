@@ -26,6 +26,7 @@ from email_templates import (
     render_daily_digest_email,
     render_weekly_summary_email
 )
+from digest_queries import get_daily_digest_data, get_weekly_summary_data
 
 # Load environment variables
 load_dotenv()
@@ -212,24 +213,27 @@ class GmailSender:
             body_text=text
         )
 
-    def send_daily_digest(self, date: datetime) -> str:
+    def send_daily_digest(self, db, date: datetime) -> str:
         """
         Send daily digest email with task statistics.
 
         Args:
+            db: SQLAlchemy database session
             date: Date for the digest
 
         Returns:
             Gmail message ID
         """
-        # TODO: Query database for actual statistics
+        # Query database for real statistics
+        stats = get_daily_digest_data(db, date)
+
         digest_data = {
             'date': date.strftime('%Y-%m-%d'),
-            'total_tasks': 0,
-            'successful': 0,
-            'failed': 0,
-            'success_rate': 0,
-            'upcoming_tasks': []
+            'total_tasks': stats['total_tasks'],
+            'successful': stats['successful'],
+            'failed': stats['failed'],
+            'success_rate': stats['success_rate'],
+            'upcoming_tasks': stats['upcoming_tasks']
         }
 
         # Render template
@@ -244,11 +248,12 @@ class GmailSender:
             body_text=text
         )
 
-    def send_weekly_summary(self, week_start: datetime) -> str:
+    def send_weekly_summary(self, db, week_start: datetime) -> str:
         """
         Send weekly summary email with task statistics.
 
         Args:
+            db: SQLAlchemy database session
             week_start: Start date of the week
 
         Returns:
@@ -257,15 +262,18 @@ class GmailSender:
         from datetime import timedelta
         week_end = week_start + timedelta(days=6)
 
-        # TODO: Query database for actual statistics
+        # Query database for real statistics
+        stats = get_weekly_summary_data(db, week_start)
+
         summary_data = {
             'week_start': week_start.strftime('%Y-%m-%d'),
             'week_end': week_end.strftime('%Y-%m-%d'),
-            'total_executions': 0,
-            'success_count': 0,
-            'failure_count': 0,
-            'top_failures': [],
-            'report_link': None
+            'total_executions': stats['total_executions'],
+            'success_count': stats['success_count'],
+            'failure_count': stats['failure_count'],
+            'top_failures': stats['top_failures'],
+            'avg_duration_ms': stats['avg_duration_ms'],
+            'report_link': None  # TODO: Add Drive report link if needed
         }
 
         # Render template
