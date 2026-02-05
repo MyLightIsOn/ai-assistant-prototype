@@ -15,6 +15,8 @@ from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
+from sqlalchemy import text
+
 from database import SessionLocal, engine
 from models import Base, Task
 from logger import get_logger
@@ -116,7 +118,7 @@ async def health():
     db_status = "connected"
     try:
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
     except Exception:
         db_status = "disconnected"
 
