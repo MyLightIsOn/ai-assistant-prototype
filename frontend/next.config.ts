@@ -7,9 +7,7 @@ const nextConfig: NextConfig = {
   experimental: {
     optimizePackageImports: ["lucide-react"],
   },
-  turbopack: {
-    root: "/Users/zhuge/dev/ai-assistant-prototype",
-  },
+  turbopack: {},
 };
 
 export default process.env.NODE_ENV === "development"
