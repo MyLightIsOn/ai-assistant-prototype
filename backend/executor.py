@@ -19,6 +19,7 @@ from database import get_db
 from claude_interface import execute_claude_task
 from logger import get_logger
 from ntfy_client import send_notification
+from gmail_sender import get_gmail_sender
 
 # Setup logging
 logger = get_logger()
@@ -189,6 +190,15 @@ Please execute this task and provide the output.
                 db_session=db
             )
 
+        # Send email notification if configured
+        if exit_code == 0 and should_notify(task, "completed"):
+            try:
+                gmail_sender = get_gmail_sender()
+                gmail_sender.send_task_completion_email(task, execution)
+                logger.info(f"Sent completion email for task {task_id}")
+            except Exception as e:
+                logger.error(f"Failed to send completion email for task {task_id}: {e}")
+
         return output, exit_code
 
     except asyncio.TimeoutError:
@@ -239,6 +249,15 @@ Please execute this task and provide the output.
                 tags=["task", "timeout", "error"],
                 db_session=db
             )
+
+        # Send email notification if configured
+        if should_notify(task, "failed"):
+            try:
+                gmail_sender = get_gmail_sender()
+                gmail_sender.send_task_failure_email(task, execution)
+                logger.info(f"Sent failure email for task {task_id} (timeout)")
+            except Exception as e:
+                logger.error(f"Failed to send failure email for task {task_id}: {e}")
 
         raise
 
@@ -294,6 +313,15 @@ Please execute this task and provide the output.
                 tags=["task", "error"],
                 db_session=db
             )
+
+        # Send email notification if configured
+        if should_notify(task, "failed"):
+            try:
+                gmail_sender = get_gmail_sender()
+                gmail_sender.send_task_failure_email(task, execution)
+                logger.info(f"Sent failure email for task {task_id}")
+            except Exception as e:
+                logger.error(f"Failed to send failure email for task {task_id}: {e}")
 
         raise
 
