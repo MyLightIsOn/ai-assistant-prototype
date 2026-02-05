@@ -32,6 +32,13 @@ const localStorageMock = (() => {
   };
 })();
 
+// Mock ResizeObserver
+global.ResizeObserver = class ResizeObserver {
+  observe() {}
+  unobserve() {}
+  disconnect() {}
+};
+
 beforeEach(() => {
   localStorageMock.clear();
   global.localStorage = localStorageMock as Storage;

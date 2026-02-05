@@ -56,7 +56,8 @@ export function useCreateTask() {
         const error = await response.json();
         throw new Error(error.message || 'Failed to create task');
       }
-      return response.json();
+      const data = await response.json();
+      return data.task;
     },
     onMutate: async (newTask) => {
       // Cancel outgoing queries
