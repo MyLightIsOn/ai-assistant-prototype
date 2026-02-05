@@ -1,5 +1,13 @@
 // API response types based on Prisma schema
 
+export interface MultiAgentMetadata {
+  agents: Array<{
+    name: string;
+    role: string;
+  }>;
+  synthesis?: boolean;
+}
+
 export interface Task {
   id: string;
   userId: string;
@@ -11,6 +19,10 @@ export interface Task {
   enabled: boolean;
   priority: string;
   notifyOn: string;
+  metadata?: {
+    multi_agent?: MultiAgentMetadata;
+    [key: string]: any;
+  };
   createdAt: string;
   updatedAt: string;
   lastRun: string | null;
