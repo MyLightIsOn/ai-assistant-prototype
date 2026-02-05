@@ -10,12 +10,14 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 
 from database import SessionLocal, engine
-from models import Base
+from models import Base, Task
 from logger import get_logger
+from scheduler import TaskScheduler
 
 # Initialize logger
 logger = get_logger()
@@ -79,6 +81,19 @@ class ConnectionManager:
 # Create connection manager instance
 manager = ConnectionManager()
 
+# Create task scheduler instance (will be started on app startup)
+task_scheduler = TaskScheduler(engine)
+
+
+class TaskIdRequest(BaseModel):
+    """Request model for task ID operations."""
+    taskId: str
+
+
+class ManualExecuteRequest(BaseModel):
+    """Request model for manual task execution."""
+    taskId: str
+
 
 @app.get("/")
 async def root():
@@ -102,13 +117,17 @@ async def health():
     except Exception:
         db_status = "disconnected"
 
+    # Check scheduler status
+    scheduler_status = "running" if task_scheduler.scheduler.running else "stopped"
+
     # Return degraded status if database is not connected
-    status = "healthy" if db_status == "connected" else "degraded"
+    status = "healthy" if db_status == "connected" and scheduler_status == "running" else "degraded"
 
     return {
         "status": status,
         "service": "ai-assistant-backend",
         "database": db_status,
+        "scheduler": scheduler_status,
         "timestamp": datetime.now(timezone.utc).isoformat()
     }
 
@@ -160,6 +179,170 @@ async def get_logs(limit: int = Query(default=100, ge=1, le=1000)):
         )
 
     return {"logs": logs}
+
+
+@app.post("/api/scheduler/sync")
+async def sync_scheduler(request: TaskIdRequest):
+    """
+    Sync a specific task or all tasks with APScheduler.
+
+    Args:
+        request: Task ID request (optional - if not provided, syncs all tasks)
+
+    Returns:
+        Success status and sync details
+    """
+    try:
+        if request.taskId:
+            # Verify task exists
+            db = SessionLocal()
+            try:
+                task = db.query(Task).filter_by(id=request.taskId).first()
+                if not task:
+                    raise HTTPException(status_code=404, detail="Task not found")
+            finally:
+                db.close()
+
+        # Sync all tasks (scheduler handles individual task updates)
+        task_scheduler.sync_tasks()
+
+        logger.info(
+            "Scheduler synced via API",
+            extra={"metadata": {"task_id": request.taskId if request.taskId else "all"}}
+        )
+
+        # Broadcast sync event to WebSocket clients
+        await manager.broadcast({
+            "type": "scheduler_sync",
+            "data": {"task_id": request.taskId if request.taskId else None},
+            "timestamp": datetime.now(timezone.utc).isoformat()
+        })
+
+        return {"success": True, "synced": request.taskId if request.taskId else "all"}
+
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(
+            "Error syncing scheduler",
+            extra={"metadata": {"error": str(e), "task_id": request.taskId if request else None}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to sync scheduler: {str(e)}")
+
+
+@app.post("/api/scheduler/remove")
+async def remove_from_scheduler(request: TaskIdRequest):
+    """
+    Remove a task from APScheduler.
+
+    Args:
+        request: Task ID to remove
+
+    Returns:
+        Success status
+    """
+    try:
+        # Remove job from scheduler
+        job = task_scheduler.scheduler.get_job(request.taskId)
+        if job:
+            task_scheduler.scheduler.remove_job(request.taskId)
+            logger.info(
+                f"Removed job {request.taskId} from scheduler",
+                extra={"metadata": {"task_id": request.taskId}}
+            )
+
+            # Broadcast removal event
+            await manager.broadcast({
+                "type": "task_removed",
+                "data": {"task_id": request.taskId},
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
+        return {"success": True, "removed": request.taskId}
+
+    except Exception as e:
+        logger.error(
+            "Error removing task from scheduler",
+            extra={"metadata": {"error": str(e), "task_id": request.taskId}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to remove task: {str(e)}")
+
+
+@app.post("/api/tasks/execute")
+async def execute_task_manually(request: ManualExecuteRequest):
+    """
+    Manually trigger a task execution (run now).
+
+    Args:
+        request: Task ID to execute
+
+    Returns:
+        Success status and execution ID
+    """
+    import asyncio
+    from executor import execute_task
+
+    try:
+        # Verify task exists
+        db = SessionLocal()
+        try:
+            task = db.query(Task).filter_by(id=request.taskId).first()
+            if not task:
+                raise HTTPException(status_code=404, detail="Task not found")
+
+            # Execute task asynchronously
+            async def run_task():
+                nonlocal db
+                try:
+                    output, exit_code = await execute_task(
+                        request.taskId,
+                        db,
+                        broadcast_callback=manager.broadcast
+                    )
+                    return {"output": output, "exit_code": exit_code}
+                finally:
+                    db.close()
+
+            result = await run_task()
+
+            logger.info(
+                f"Manual execution of task {request.taskId} completed",
+                extra={"metadata": {"exit_code": result["exit_code"]}}
+            )
+
+            return {
+                "success": True,
+                "task_id": request.taskId,
+                "exit_code": result["exit_code"]
+            }
+
+        except HTTPException:
+            db.close()
+            raise
+
+    except Exception as e:
+        logger.error(
+            "Error executing task manually",
+            extra={"metadata": {"error": str(e), "task_id": request.taskId}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
+
+
+@app.on_event("startup")
+async def startup_event():
+    """Application startup - start scheduler and sync tasks."""
+    logger.info("Starting AI Assistant Backend")
+    task_scheduler.start()
+    task_scheduler.sync_tasks()
+    logger.info("Scheduler started and tasks synchronized")
+
+
+@app.on_event("shutdown")
+async def shutdown_event():
+    """Application shutdown - gracefully stop scheduler."""
+    logger.info("Shutting down AI Assistant Backend")
+    task_scheduler.shutdown(wait=True)
+    logger.info("Scheduler shutdown complete")
 
 
 @app.websocket("/ws")
