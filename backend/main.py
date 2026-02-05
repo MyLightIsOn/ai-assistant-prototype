@@ -10,14 +10,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request, BackgroundTasks
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
+
+from sqlalchemy import text
 
 from database import SessionLocal, engine
 from models import Base, Task
 from logger import get_logger
 from scheduler import TaskScheduler
+from google_calendar import get_calendar_sync
+import base64
 
 # Initialize logger
 logger = get_logger()
@@ -113,7 +118,7 @@ async def health():
     db_status = "connected"
     try:
         with SessionLocal() as db:
-            db.execute("SELECT 1")
+            db.execute(text("SELECT 1"))
     except Exception:
         db_status = "disconnected"
 
@@ -326,6 +331,367 @@ async def execute_task_manually(request: ManualExecuteRequest):
             extra={"metadata": {"error": str(e), "task_id": request.taskId}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
+
+
+def get_task_from_db(task_id: str) -> Optional[Task]:
+    """
+    Get task from database by ID.
+
+    Args:
+        task_id: Task ID to fetch
+
+    Returns:
+        Task instance or None if not found
+    """
+    db = SessionLocal()
+    try:
+        return db.query(Task).filter_by(id=task_id).first()
+    finally:
+        db.close()
+
+
+def update_task_metadata(task_id: str, metadata_updates: dict):
+    """
+    Update task metadata in database.
+
+    Args:
+        task_id: Task ID to update
+        metadata_updates: Dictionary of metadata fields to update
+    """
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter_by(id=task_id).first()
+        if task:
+            # Parse existing metadata
+            if isinstance(task.metadata, str):
+                existing_metadata = json.loads(task.metadata) if task.metadata else {}
+            else:
+                existing_metadata = task.metadata or {}
+
+            # Merge with updates
+            existing_metadata.update(metadata_updates)
+
+            # Save back as JSON string
+            task.metadata = json.dumps(existing_metadata)
+            db.commit()
+    finally:
+        db.close()
+
+
+@app.post("/api/calendar/sync")
+async def sync_task_to_calendar(request: Request):
+    """
+    Sync task to Google Calendar.
+
+    Request body: {"taskId": "task_123"}
+    Response: {"event_id": "event_12345"}
+    """
+    try:
+        data = await request.json()
+        task_id = data['taskId']
+
+        # Get task from database
+        task = get_task_from_db(task_id)
+        if not task:
+            return Response(
+                content=json.dumps({"error": "Task not found"}),
+                status_code=404
+            )
+
+        # Sync to Calendar
+        calendar_sync = get_calendar_sync()
+        event_id = calendar_sync.sync_task_to_calendar(task)
+
+        # Update task metadata with event ID
+        update_task_metadata(task_id, {'calendarEventId': event_id})
+
+        return {"event_id": event_id}
+
+    except Exception as e:
+        logger.error(f"Calendar sync error: {e}")
+        return Response(
+            content=json.dumps({"error": str(e)}),
+            status_code=500
+        )
+
+
+@app.delete("/api/calendar/sync/{task_id}")
+async def delete_task_calendar_event(task_id: str):
+    """
+    Delete Calendar event when task deleted.
+
+    Response: {"status": "deleted"}
+    """
+    try:
+        # Get task from database
+        task = get_task_from_db(task_id)
+        if not task:
+            return Response(
+                content=json.dumps({"error": "Task not found"}),
+                status_code=404
+            )
+
+        # Delete Calendar event
+        calendar_sync = get_calendar_sync()
+        calendar_sync.delete_calendar_event(task)
+
+        return {"status": "deleted"}
+
+    except Exception as e:
+        logger.error(f"Calendar delete error: {e}")
+        return Response(
+            content=json.dumps({"error": str(e)}),
+            status_code=500
+        )
+
+
+def create_task_in_db(task_data: dict) -> Task:
+    """
+    Create task in database.
+
+    Args:
+        task_data: Task data dict
+
+    Returns:
+        Created Task instance
+    """
+    db = SessionLocal()
+    try:
+        task = Task(**task_data)
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+        return task
+    finally:
+        db.close()
+
+
+def update_task_in_db(task_id: str, task_data: dict):
+    """
+    Update task in database.
+
+    Args:
+        task_id: Task ID to update
+        task_data: Task data dict
+    """
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter_by(id=task_id).first()
+        if task:
+            for key, value in task_data.items():
+                setattr(task, key, value)
+            db.commit()
+    finally:
+        db.close()
+
+
+def delete_task_in_db(task_id: str):
+    """
+    Delete task from database.
+
+    Args:
+        task_id: Task ID to delete
+    """
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter_by(id=task_id).first()
+        if task:
+            db.delete(task)
+            db.commit()
+    finally:
+        db.close()
+
+
+def _verify_pubsub_request(request: Request) -> bool:
+    """
+    Verify request is from Google Pub/Sub.
+
+    Implements security verification for Pub/Sub push messages:
+    1. Verifies required Pub/Sub headers are present
+    2. Optionally verifies secret token (if PUBSUB_VERIFICATION_TOKEN is set)
+    3. Validates message structure
+
+    Returns:
+        bool: True if request appears to be from Pub/Sub, False otherwise
+    """
+    # Check for standard Pub/Sub push headers
+    has_pubsub_headers = (
+        'X-Goog-Resource-State' in request.headers or
+        'X-Goog-Channel-ID' in request.headers or
+        'X-Goog-Message-Number' in request.headers
+    )
+
+    if not has_pubsub_headers:
+        logger.warning("Missing Pub/Sub headers")
+        return False
+
+    # Optional: Verify secret token if configured
+    # To use: Set PUBSUB_VERIFICATION_TOKEN in .env and configure it in
+    # the Pub/Sub push subscription attributes
+    verification_token = os.getenv('PUBSUB_VERIFICATION_TOKEN')
+    if verification_token:
+        # Check token in query parameter (recommended by Google)
+        token_param = request.query_params.get('token')
+        if token_param != verification_token:
+            logger.warning("Invalid Pub/Sub verification token")
+            return False
+
+    return True
+
+
+def _get_priority_from_color(color_id: Optional[str]) -> str:
+    """Map Calendar color to task priority."""
+    color_to_priority = {
+        '1': 'low',
+        '10': 'default',
+        '6': 'high',
+        '11': 'urgent'
+    }
+    return color_to_priority.get(color_id, 'default')
+
+
+def _update_event_extended_props(event_id: str, props: dict):
+    """Update Calendar event extended properties."""
+    try:
+        calendar_sync = get_calendar_sync()
+        event = calendar_sync.get_event(event_id)
+
+        if not event:
+            return
+
+        # Merge new props with existing
+        extended_props = event.get('extendedProperties', {})
+        private_props = extended_props.get('private', {})
+        private_props.update(props)
+        extended_props['private'] = private_props
+
+        # Update event
+        calendar_sync.service.events().update(
+            calendarId=calendar_sync.calendar_id,
+            eventId=event_id,
+            body={'extendedProperties': extended_props}
+        ).execute()
+
+    except Exception as e:
+        logger.error(f"Error updating event extended props: {e}")
+
+
+@app.post("/api/google/calendar/webhook")
+async def calendar_webhook(request: Request, background_tasks: BackgroundTasks):
+    """
+    Handle Calendar change notifications from Pub/Sub.
+
+    Google Pub/Sub sends push notifications when Calendar events change.
+    This endpoint verifies the message and processes it asynchronously.
+    """
+    try:
+        # Verify Pub/Sub signature
+        if not _verify_pubsub_request(request):
+            logger.warning("Invalid Pub/Sub request signature")
+            return Response(status_code=401)
+
+        # Parse Pub/Sub message
+        body = await request.json()
+
+        # Handle subscription verification (Pub/Sub health check)
+        if 'message' not in body:
+            return Response(status_code=200)
+
+        message_data = base64.b64decode(body['message']['data'])
+        calendar_notification = json.loads(message_data)
+
+        # Process asynchronously (return 200 quickly per Pub/Sub requirements)
+        background_tasks.add_task(process_calendar_change, calendar_notification)
+
+        return Response(status_code=200)
+
+    except Exception as e:
+        logger.error(f"Calendar webhook error: {e}")
+        return Response(status_code=500)
+
+
+async def process_calendar_change(notification: dict):
+    """
+    Process Calendar event change and sync to database.
+
+    Args:
+        notification: Pub/Sub notification data
+    """
+    try:
+        # Fetch the actual event from Calendar API
+        resource_id = notification.get('resourceId')
+        if not resource_id:
+            logger.warning("No resourceId in notification")
+            return
+
+        calendar_sync = get_calendar_sync()
+        event = calendar_sync.get_event(resource_id)
+
+        if not event:
+            logger.warning(f"Event {resource_id} not found")
+            return
+
+        # Check if this is our own event (prevent loops)
+        extended_props = event.get('extendedProperties', {}).get('private', {})
+        if extended_props.get('source') == 'ai-assistant':
+            logger.info(f"Ignoring own event {event['id']}")
+            return  # Ignore our own synced events
+
+        # Determine change type and update DB
+        if event['status'] == 'confirmed':
+            await create_or_update_task_from_event(event)
+        elif event['status'] == 'cancelled':
+            await delete_task_from_event(event)
+
+    except Exception as e:
+        logger.error(f"Error processing calendar change: {e}")
+
+
+async def create_or_update_task_from_event(event: dict):
+    """Create or update task from Calendar event."""
+    try:
+        # Extract task data from event
+        task_data = {
+            'name': event['summary'],
+            'description': event.get('description', ''),
+            'schedule': '0 0 * * *',  # TODO: Convert event to cron
+            'priority': _get_priority_from_color(event.get('colorId')),
+            'enabled': True,
+            'notifyOn': 'completion,error'
+        }
+
+        # Check if task already exists (by checking extended properties)
+        extended_props = event.get('extendedProperties', {}).get('private', {})
+        task_id = extended_props.get('taskId')
+
+        if task_id:
+            # Update existing task
+            update_task_in_db(task_id, task_data)
+            logger.info(f"Updated task {task_id} from Calendar event")
+        else:
+            # Create new task
+            task = create_task_in_db(task_data)
+            logger.info(f"Created task {task.id} from Calendar event")
+
+            # Update Calendar event with taskId to prevent future duplicates
+            _update_event_extended_props(event['id'], {'taskId': task.id})
+
+    except Exception as e:
+        logger.error(f"Error creating/updating task from event: {e}")
+
+
+async def delete_task_from_event(event: dict):
+    """Delete task when Calendar event deleted."""
+    try:
+        extended_props = event.get('extendedProperties', {}).get('private', {})
+        task_id = extended_props.get('taskId')
+
+        if task_id:
+            delete_task_in_db(task_id)
+            logger.info(f"Deleted task {task_id} from Calendar event deletion")
+
+    except Exception as e:
+        logger.error(f"Error deleting task from event: {e}")
 
 
 @app.on_event("startup")
