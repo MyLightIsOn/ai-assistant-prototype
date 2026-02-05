@@ -106,3 +106,7 @@ google_user_credentials.json
 # Git worktrees
 .worktrees/
 worktrees/
+
+# Documentation (contains private architecture and implementation details)
+# Repository is PUBLIC - docs must remain private until verified and production-ready
+docs/

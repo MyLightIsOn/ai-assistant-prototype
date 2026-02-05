@@ -1,7 +1,3 @@
-# CLAUDE.md
-
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## ⚠️ CRITICAL: Documentation Policy
 
 **NEVER commit the `docs/` directory to git:**
@@ -10,6 +6,12 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 - These details must remain private until the system is verified and production-ready
 - The `docs/` directory is intentionally excluded in `.gitignore` and must stay that way
 - Only commit documentation when explicitly approved by the user
+
+---
+
+# CLAUDE.md
+
+This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
 ## Project Overview
 
