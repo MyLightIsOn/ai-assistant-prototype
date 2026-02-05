@@ -64,11 +64,11 @@ async def execute_task(
         executionId=execution.id,
         type="task_start",
         message=f"Task '{task.name}' started",
-        metadata=json.dumps({
+        metadata_={
             "task_id": task_id,
             "command": task.command,
             "args": task.args
-        })
+        }
     )
     db.add(log_entry)
     db.commit()
@@ -157,10 +157,10 @@ Please execute this task and provide the output.
             executionId=execution.id,
             type="task_complete" if exit_code == 0 else "task_error",
             message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
-            metadata=json.dumps({
+            metadata_={
                 "exit_code": exit_code,
                 "duration_ms": execution.duration
-            })
+            }
         )
         db.add(log_entry)
         db.commit()
@@ -220,7 +220,7 @@ Please execute this task and provide the output.
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' timed out",
-            metadata=json.dumps({"error": "timeout", "duration_ms": execution.duration})
+            metadata_={"error": "timeout", "duration_ms": execution.duration}
         )
         db.add(log_entry)
         db.commit()
@@ -280,11 +280,11 @@ Please execute this task and provide the output.
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' failed: {str(e)}",
-            metadata=json.dumps({
+            metadata_={
                 "error": str(e),
                 "error_type": type(e).__name__,
                 "duration_ms": execution.duration
-            })
+            }
         )
         db.add(log_entry)
         db.commit()

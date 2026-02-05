@@ -40,6 +40,7 @@ model Task {
   enabled     Boolean         @default(true)
   priority    String          @default("default")
   notifyOn    String          @default("completion,error")
+  metadata    String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   lastRun     DateTime?

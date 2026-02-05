@@ -32,8 +32,7 @@ def test_calendar_sync():
     print(f"  Extended props: {event.get('extendedProperties')}")
 
     # Test 3: Update task metadata with event ID
-    import json
-    task.metadata = json.dumps({'calendarEventId': event_id})
+    task.task_metadata = {'calendarEventId': event_id}
 
     # Test 4: Update event
     print("\nUpdating event (change priority to urgent)...")

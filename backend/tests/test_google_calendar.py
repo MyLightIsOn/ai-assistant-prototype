@@ -59,8 +59,7 @@ def test_sync_task_creates_calendar_event(calendar_sync, mock_calendar_service, 
 def test_sync_task_updates_existing_event(calendar_sync, mock_calendar_service, sample_task):
     """Test sync_task_to_calendar updates existing event."""
     # Task already has calendar event ID
-    import json
-    sample_task.metadata = json.dumps({'calendarEventId': 'event_12345'})
+    sample_task.task_metadata = {'calendarEventId': 'event_12345'}
 
     mock_calendar_service.events().update().execute.return_value = {
         'id': 'event_12345'
@@ -99,7 +98,7 @@ def test_sync_task_sets_color_by_priority(calendar_sync, mock_calendar_service, 
 def test_delete_calendar_event(calendar_sync, mock_calendar_service, sample_task):
     """Test delete_calendar_event removes event."""
     import json
-    sample_task.metadata = json.dumps({'calendarEventId': 'event_12345'})
+    sample_task.task_metadata = {'calendarEventId': 'event_12345'}
 
     calendar_sync.delete_calendar_event(sample_task)
 

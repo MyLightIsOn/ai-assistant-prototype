@@ -6,6 +6,7 @@ Main application with WebSocket support for real-time communication.
 
 import json
 import os
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
@@ -30,11 +31,33 @@ logger = get_logger()
 # Create database tables
 Base.metadata.create_all(bind=engine)
 
-# Create FastAPI application
+# Create task scheduler instance (will be started in lifespan)
+task_scheduler = TaskScheduler(engine)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan handler - startup and shutdown logic."""
+    # Startup
+    logger.info("Starting AI Assistant Backend")
+    task_scheduler.start()
+    task_scheduler.sync_tasks()
+    logger.info("Scheduler started and tasks synchronized")
+
+    yield
+
+    # Shutdown
+    logger.info("Shutting down AI Assistant Backend")
+    task_scheduler.shutdown(wait=True)
+    logger.info("Scheduler shutdown complete")
+
+
+# Create FastAPI application with lifespan handler
 app = FastAPI(
     title="AI Assistant Backend",
     description="Python FastAPI backend for AI Assistant with WebSocket support",
-    version="0.1.0"
+    version="0.1.0",
+    lifespan=lifespan
 )
 
 # Configure CORS middleware
@@ -85,9 +108,6 @@ class ConnectionManager:
 
 # Create connection manager instance
 manager = ConnectionManager()
-
-# Create task scheduler instance (will be started on app startup)
-task_scheduler = TaskScheduler(engine)
 
 
 class TaskIdRequest(BaseModel):
@@ -362,17 +382,14 @@ def update_task_metadata(task_id: str, metadata_updates: dict):
     try:
         task = db.query(Task).filter_by(id=task_id).first()
         if task:
-            # Parse existing metadata
-            if isinstance(task.metadata, str):
-                existing_metadata = json.loads(task.metadata) if task.metadata else {}
-            else:
-                existing_metadata = task.metadata or {}
+            # Get existing metadata (JSON column handles serialization automatically)
+            existing_metadata = task.task_metadata or {}
 
             # Merge with updates
             existing_metadata.update(metadata_updates)
 
-            # Save back as JSON string
-            task.metadata = json.dumps(existing_metadata)
+            # Save back (no need for json.dumps - JSON column handles it)
+            task.task_metadata = existing_metadata
             db.commit()
     finally:
         db.close()
@@ -692,23 +709,6 @@ async def delete_task_from_event(event: dict):
 
     except Exception as e:
         logger.error(f"Error deleting task from event: {e}")
-
-
-@app.on_event("startup")
-async def startup_event():
-    """Application startup - start scheduler and sync tasks."""
-    logger.info("Starting AI Assistant Backend")
-    task_scheduler.start()
-    task_scheduler.sync_tasks()
-    logger.info("Scheduler started and tasks synchronized")
-
-
-@app.on_event("shutdown")
-async def shutdown_event():
-    """Application shutdown - gracefully stop scheduler."""
-    logger.info("Shutting down AI Assistant Backend")
-    task_scheduler.shutdown(wait=True)
-    logger.info("Scheduler shutdown complete")
 
 
 @app.websocket("/ws")
