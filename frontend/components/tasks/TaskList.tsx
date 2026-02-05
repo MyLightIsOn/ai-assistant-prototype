@@ -18,10 +18,7 @@ export function TaskList({ onTriggerTask }: TaskListProps) {
   const { data: tasks, isLoading, error, refetch } = useTasks()
 
   // Use WebSocket query sync for automatic refetching on task-related events
-  useWebSocketQuerySync(
-    ['tasks'],
-    ['task_created', 'task_updated', 'task_deleted', 'task_status', 'scheduler_sync', 'status_update', 'execution_complete']
-  )
+  useWebSocketQuerySync()
 
   if (error) {
     return (
