@@ -1,8 +1,31 @@
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Plus } from "lucide-react";
+"use client"
+
+import { Button } from "@/components/ui/button"
+import { Plus } from "lucide-react"
+import { useRouter } from "next/navigation"
+import { TaskList } from "@/components/tasks/TaskList"
+import { toast } from "sonner"
 
 export default function TasksPage() {
+  const router = useRouter()
+
+  const handleTriggerTask = async (taskId: string) => {
+    try {
+      const response = await fetch(`/api/tasks/${taskId}/trigger`, {
+        method: 'POST',
+      })
+
+      if (!response.ok) {
+        throw new Error('Failed to trigger task')
+      }
+
+      toast.success('Task triggered successfully')
+    } catch (error) {
+      toast.error('Failed to trigger task')
+      console.error(error)
+    }
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -12,31 +35,13 @@ export default function TasksPage() {
             Manage your scheduled AI tasks
           </p>
         </div>
-        <Button>
+        <Button onClick={() => router.push('/tasks/new')}>
           <Plus className="mr-2 h-4 w-4" />
           New Task
         </Button>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Scheduled Tasks</CardTitle>
-          <CardDescription>
-            Your recurring and one-time tasks
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="flex flex-col items-center justify-center py-12 text-center">
-            <p className="text-muted-foreground mb-4">
-              No tasks scheduled yet
-            </p>
-            <Button variant="outline">
-              <Plus className="mr-2 h-4 w-4" />
-              Create your first task
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+      <TaskList onTriggerTask={handleTriggerTask} />
     </div>
-  );
+  )
 }

@@ -23,6 +23,7 @@ from sqlalchemy.orm import sessionmaker
 from models import Task, TaskExecution, ActivityLog
 from database import get_db
 from logger import get_logger
+from executor import execute_task_wrapper
 
 
 # Configure logging
@@ -140,9 +141,9 @@ class TaskScheduler:
                     )
                     logger.info(f"Updated job {task.id}: {task.name}")
                 else:
-                    # Add new job using module:function reference for pickling
+                    # Add new job using imported function
                     job = self.scheduler.add_job(
-                        func='scheduler:execute_task_wrapper',
+                        func=execute_task_wrapper,
                         trigger=trigger,
                         id=task.id,
                         name=task.name,
