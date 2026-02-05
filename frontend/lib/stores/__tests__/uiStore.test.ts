@@ -5,6 +5,13 @@ describe('uiStore', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
+    // Reset the zustand store state
+    useUiStore.setState({
+      sidebarOpen: true,
+      theme: 'dark',
+      terminalVisible: false,
+      notificationsOpen: false,
+    }, true);
   });
 
   it('initializes with default values', () => {

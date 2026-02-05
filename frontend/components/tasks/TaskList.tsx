@@ -1,15 +1,13 @@
 "use client"
 
 import { useTasks } from "@/lib/hooks/useTasks"
-import { useWebSocket } from "@/lib/hooks/useWebSocket"
+import { useWebSocketQuerySync } from "@/lib/hooks/useWebSocketQuerySync"
 import { TaskCard } from "./TaskCard"
 import { Skeleton } from "@/components/ui/skeleton"
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Plus, Inbox } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useEffect } from "react"
-import { toast } from "sonner"
 
 interface TaskListProps {
   onTriggerTask?: (taskId: string) => void
@@ -18,28 +16,12 @@ interface TaskListProps {
 export function TaskList({ onTriggerTask }: TaskListProps) {
   const router = useRouter()
   const { data: tasks, isLoading, error, refetch } = useTasks()
-  const { subscribe, isConnected } = useWebSocket({ autoConnect: true })
 
-  // Subscribe to WebSocket updates for real-time task status
-  useEffect(() => {
-    if (!isConnected) return
-
-    const unsubscribe = subscribe('status_update', (message) => {
-      // Refetch tasks when a task status changes
-      refetch()
-    })
-
-    const unsubscribeExecution = subscribe('execution_complete', (message) => {
-      // Refetch tasks when an execution completes
-      refetch()
-      toast.success('Task execution completed')
-    })
-
-    return () => {
-      unsubscribe()
-      unsubscribeExecution()
-    }
-  }, [isConnected, subscribe, refetch])
+  // Use WebSocket query sync for automatic refetching on task-related events
+  useWebSocketQuerySync(
+    ['tasks'],
+    ['task_created', 'task_updated', 'task_deleted', 'task_status', 'scheduler_sync', 'status_update', 'execution_complete']
+  )
 
   if (error) {
     return (

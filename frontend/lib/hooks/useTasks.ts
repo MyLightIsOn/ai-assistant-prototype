@@ -19,7 +19,8 @@ export function useTasks() {
       if (!response.ok) {
         throw new Error('Failed to fetch tasks');
       }
-      return response.json();
+      const data = await response.json();
+      return data.tasks; // Extract tasks array from { tasks: [...] } response
     },
   });
 }
