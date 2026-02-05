@@ -222,7 +222,7 @@ export function TaskCard({ task, onTrigger }: TaskCardProps) {
           <DialogHeader>
             <DialogTitle>Delete Task</DialogTitle>
             <DialogDescription>
-              Are you sure you want to delete "{task.name}"? This action cannot
+              Are you sure you want to delete &quot;{task.name}&quot;? This action cannot
               be undone and will remove all execution history.
             </DialogDescription>
           </DialogHeader>
