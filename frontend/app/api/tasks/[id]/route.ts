@@ -101,8 +101,8 @@ export async function PATCH(
     });
 
     // Sync with APScheduler via Python backend
+    const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
     try {
-      const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
       await fetch(`${backendUrl}/api/scheduler/sync`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -111,6 +111,18 @@ export async function PATCH(
     } catch (syncError) {
       console.error("Failed to sync with scheduler:", syncError);
       // Don't fail the request if sync fails
+    }
+
+    // Trigger Calendar sync (non-blocking)
+    try {
+      await fetch(`${backendUrl}/api/calendar/sync`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ taskId: task.id }),
+      });
+    } catch (error) {
+      console.error("Calendar sync failed:", error);
+      // Non-blocking - task still updated
     }
 
     return NextResponse.json(task);
@@ -165,6 +177,18 @@ export async function DELETE(
       );
     }
 
+    const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
+
+    // Delete Calendar event first (non-blocking)
+    try {
+      await fetch(`${backendUrl}/api/calendar/sync/${id}`, {
+        method: "DELETE",
+      });
+    } catch (error) {
+      console.error("Calendar delete failed:", error);
+      // Non-blocking - proceed with task deletion
+    }
+
     // Delete task (cascade will handle executions and logs)
     await prisma.task.delete({
       where: { id: id },
@@ -172,7 +196,6 @@ export async function DELETE(
 
     // Remove from APScheduler via Python backend
     try {
-      const backendUrl = process.env.PYTHON_BACKEND_URL || "http://localhost:8000";
       await fetch(`${backendUrl}/api/scheduler/remove`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
