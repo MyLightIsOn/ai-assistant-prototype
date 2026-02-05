@@ -5,7 +5,7 @@ Provides infrastructure for coordinating multiple Claude Code agents
 working sequentially on complex tasks with file-based communication.
 """
 
-__version__ = "1.0.0"
+__version__ = "0.1.0"
 
 # Lazy imports to avoid import errors during development
 __all__ = [

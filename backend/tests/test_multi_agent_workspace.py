@@ -73,3 +73,37 @@ def test_init_shared_context(tmp_path):
     assert context["task_description"] == "Test description"
     assert context["completed_agents"] == []
     assert "task_id" in context
+
+
+def test_create_agent_workspace_validates_execution_id(tmp_path):
+    """Test that empty execution_id raises ValueError."""
+    with pytest.raises(ValueError, match="execution_id must be non-empty"):
+        create_agent_workspace("", base_path=tmp_path)
+
+    with pytest.raises(ValueError, match="execution_id must be non-empty"):
+        create_agent_workspace("   ", base_path=tmp_path)
+
+
+def test_init_shared_context_validates_json_serializable(tmp_path):
+    """Test that non-serializable task_data raises ValueError."""
+    workspace = tmp_path / "test_workspace"
+    workspace.mkdir()
+    (workspace / "shared").mkdir()
+
+    from datetime import datetime
+    task_data = {
+        "id": "123",
+        "date": datetime.now()  # Not JSON-serializable
+    }
+
+    with pytest.raises(ValueError, match="must be JSON-serializable"):
+        init_shared_context(workspace, task_data)
+
+
+def test_init_shared_context_validates_workspace_exists(tmp_path):
+    """Test that non-existent workspace raises FileNotFoundError."""
+    workspace = tmp_path / "nonexistent"
+    task_data = {"id": "123", "name": "Test"}
+
+    with pytest.raises(FileNotFoundError, match="Workspace directory not found"):
+        init_shared_context(workspace, task_data)

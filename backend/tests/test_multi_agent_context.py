@@ -89,3 +89,35 @@ def test_append_agent_output_to_context(tmp_path):
     assert len(final_context["completed_agents"]) == 2
     assert "research" in final_context["completed_agents"]
     assert "execute" in final_context["completed_agents"]
+
+
+def test_update_shared_context_validates_json_serializable(tmp_path):
+    """Test that non-serializable agent_output raises ValueError."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "shared").mkdir()
+
+    # Create context file
+    context_file = workspace / "shared" / "context.json"
+    with open(context_file, "w") as f:
+        json.dump({"task_id": "123", "completed_agents": []}, f)
+
+    from datetime import datetime
+    agent_output = {
+        "date": datetime.now()  # Not JSON-serializable
+    }
+
+    with pytest.raises(ValueError, match="must be JSON-serializable"):
+        update_shared_context(workspace, "research", agent_output)
+
+
+def test_update_shared_context_validates_context_exists(tmp_path):
+    """Test that missing context file raises FileNotFoundError."""
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "shared").mkdir()
+
+    agent_output = {"data": "test"}
+
+    with pytest.raises(FileNotFoundError, match="Context file not found"):
+        update_shared_context(workspace, "research", agent_output)

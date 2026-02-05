@@ -38,12 +38,29 @@ def update_shared_context(
     """
     Update shared context with agent output.
 
+    WARNING: This function uses read-modify-write without locking.
+    Safe for sequential execution only. Add file locking before
+    enabling parallel agent execution.
+
     Args:
         workspace: Path to workspace directory
         agent_name: Name of agent providing output
         agent_output: Agent's output data
+
+    Raises:
+        ValueError: If agent_output is not JSON-serializable
+        FileNotFoundError: If context file doesn't exist
     """
+    # Validate agent_output is JSON-serializable
+    try:
+        json.dumps(agent_output)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"agent_output must be JSON-serializable: {e}")
+
     context_file = workspace / "shared" / "context.json"
+
+    if not context_file.exists():
+        raise FileNotFoundError(f"Context file not found: {context_file}")
 
     # Read current context
     with open(context_file) as f:

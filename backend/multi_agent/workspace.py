@@ -19,6 +19,10 @@ def create_agent_workspace(
     """
     Create workspace directory structure for multi-agent execution.
 
+    Note: This function creates the directory structure but NOT the
+    shared/context.json file. Call init_shared_context() separately
+    to create the context file.
+
     Args:
         execution_id: Unique execution identifier
         agents: List of agent names to create directories for
@@ -26,7 +30,14 @@ def create_agent_workspace(
 
     Returns:
         Path: Path to created workspace directory
+
+    Raises:
+        ValueError: If execution_id is empty or whitespace-only
     """
+    # Validate execution_id
+    if not execution_id or not execution_id.strip():
+        raise ValueError("execution_id must be non-empty string")
+
     # Determine base path
     if base_path is None:
         project_root = Path(__file__).parent.parent.parent
@@ -85,7 +96,20 @@ def init_shared_context(
     Args:
         workspace: Path to workspace directory
         task_data: Task information to include in context
+
+    Raises:
+        ValueError: If task_data is not JSON-serializable
+        FileNotFoundError: If workspace directory doesn't exist
     """
+    if not workspace.exists():
+        raise FileNotFoundError(f"Workspace directory not found: {workspace}")
+
+    # Test JSON serializability early
+    try:
+        json.dumps(task_data)
+    except (TypeError, ValueError) as e:
+        raise ValueError(f"task_data must be JSON-serializable: {e}")
+
     context = {
         "task_id": task_data.get("id"),
         "task_name": task_data.get("name"),

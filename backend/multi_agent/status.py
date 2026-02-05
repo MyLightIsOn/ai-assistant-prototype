@@ -30,12 +30,19 @@ def update_agent_status(
     """
     Update agent status file.
 
+    WARNING: This function uses read-modify-write without locking.
+    Safe for sequential execution only. Add file locking before
+    enabling parallel agent execution.
+
     Args:
         workspace: Path to workspace directory
         agent_name: Name of agent
         status: New status
         exit_code: Process exit code (optional)
         error: Error message (optional)
+
+    Raises:
+        FileNotFoundError: If status file doesn't exist
     """
     status_file = workspace / "agents" / agent_name / "status.json"
 
