@@ -102,3 +102,7 @@ google_user_credentials.json
 
 # Playwright MCP
 .playwright-mcp/
+
+# Git worktrees
+.worktrees/
+worktrees/
