@@ -10,7 +10,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
-from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException
+from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request
+from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 
@@ -18,6 +19,7 @@ from database import SessionLocal, engine
 from models import Base, Task
 from logger import get_logger
 from scheduler import TaskScheduler
+from google_calendar import get_calendar_sync
 
 # Initialize logger
 logger = get_logger()
@@ -326,6 +328,118 @@ async def execute_task_manually(request: ManualExecuteRequest):
             extra={"metadata": {"error": str(e), "task_id": request.taskId}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
+
+
+def get_task_from_db(task_id: str) -> Optional[Task]:
+    """
+    Get task from database by ID.
+
+    Args:
+        task_id: Task ID to fetch
+
+    Returns:
+        Task instance or None if not found
+    """
+    db = SessionLocal()
+    try:
+        return db.query(Task).filter_by(id=task_id).first()
+    finally:
+        db.close()
+
+
+def update_task_metadata(task_id: str, metadata_updates: dict):
+    """
+    Update task metadata in database.
+
+    Args:
+        task_id: Task ID to update
+        metadata_updates: Dictionary of metadata fields to update
+    """
+    db = SessionLocal()
+    try:
+        task = db.query(Task).filter_by(id=task_id).first()
+        if task:
+            # Parse existing metadata
+            if isinstance(task.metadata, str):
+                existing_metadata = json.loads(task.metadata) if task.metadata else {}
+            else:
+                existing_metadata = task.metadata or {}
+
+            # Merge with updates
+            existing_metadata.update(metadata_updates)
+
+            # Save back as JSON string
+            task.metadata = json.dumps(existing_metadata)
+            db.commit()
+    finally:
+        db.close()
+
+
+@app.post("/api/calendar/sync")
+async def sync_task_to_calendar(request: Request):
+    """
+    Sync task to Google Calendar.
+
+    Request body: {"taskId": "task_123"}
+    Response: {"event_id": "event_12345"}
+    """
+    try:
+        data = await request.json()
+        task_id = data['taskId']
+
+        # Get task from database
+        task = get_task_from_db(task_id)
+        if not task:
+            return Response(
+                content=json.dumps({"error": "Task not found"}),
+                status_code=404
+            )
+
+        # Sync to Calendar
+        calendar_sync = get_calendar_sync()
+        event_id = calendar_sync.sync_task_to_calendar(task)
+
+        # Update task metadata with event ID
+        update_task_metadata(task_id, {'calendarEventId': event_id})
+
+        return {"event_id": event_id}
+
+    except Exception as e:
+        logger.error(f"Calendar sync error: {e}")
+        return Response(
+            content=json.dumps({"error": str(e)}),
+            status_code=500
+        )
+
+
+@app.delete("/api/calendar/sync/{task_id}")
+async def delete_task_calendar_event(task_id: str):
+    """
+    Delete Calendar event when task deleted.
+
+    Response: {"status": "deleted"}
+    """
+    try:
+        # Get task from database
+        task = get_task_from_db(task_id)
+        if not task:
+            return Response(
+                content=json.dumps({"error": "Task not found"}),
+                status_code=404
+            )
+
+        # Delete Calendar event
+        calendar_sync = get_calendar_sync()
+        calendar_sync.delete_calendar_event(task)
+
+        return {"status": "deleted"}
+
+    except Exception as e:
+        logger.error(f"Calendar delete error: {e}")
+        return Response(
+            content=json.dumps({"error": str(e)}),
+            status_code=500
+        )
 
 
 @app.on_event("startup")
