@@ -54,7 +54,8 @@ async def _execute_multi_agent(
         result = await execute_multi_agent_task(
             task=task,
             execution_id=execution.id,
-            broadcast_callback=broadcast_callback
+            broadcast_callback=broadcast_callback,
+            db_session=db
         )
 
         end_time = datetime.now(timezone.utc)

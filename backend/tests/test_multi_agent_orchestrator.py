@@ -214,7 +214,8 @@ async def test_execute_multi_agent_task_with_synthesis_flag(tmp_path):
         }
     }
 
-    with patch("multi_agent.orchestrator.execute_single_agent") as mock_execute:
+    with patch("multi_agent.orchestrator.execute_single_agent") as mock_execute, \
+         patch("multi_agent.orchestrator.synthesize_results") as mock_synthesis:
         mock_execute.return_value = AgentExecutionResult(
             agent_name="research",
             status="completed",
@@ -222,6 +223,13 @@ async def test_execute_multi_agent_task_with_synthesis_flag(tmp_path):
             output={"findings": ["Finding 1"]},
             duration_ms=1000
         )
+
+        # Mock synthesis to return success
+        mock_synthesis.return_value = {
+            "status": "completed",
+            "synthesis": {"summary": "Test synthesis"},
+            "duration_ms": 500
+        }
 
         result = await execute_multi_agent_task(
             task=task,
