@@ -18,7 +18,7 @@ async def test_agent_started_activity_log(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -73,7 +73,7 @@ async def test_agent_completed_activity_log(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -128,7 +128,7 @@ async def test_agent_failed_activity_log(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
@@ -196,7 +196,7 @@ async def test_synthesis_activity_logs(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -262,7 +262,7 @@ async def test_activity_logs_without_db_session(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],

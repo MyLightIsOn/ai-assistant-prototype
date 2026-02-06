@@ -15,6 +15,7 @@ export const createTaskSchema = z.object({
   enabled: z.boolean().default(true),
   priority: z.enum(["low", "default", "high", "urgent"]).default("default"),
   notifyOn: z.string().default("completion,error"),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export const updateTaskSchema = z.object({
@@ -26,6 +27,7 @@ export const updateTaskSchema = z.object({
   enabled: z.boolean().optional(),
   priority: z.enum(["low", "default", "high", "urgent"]).optional(),
   notifyOn: z.string().optional(),
+  metadata: z.record(z.string(), z.any()).optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;

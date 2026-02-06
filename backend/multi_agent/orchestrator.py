@@ -263,10 +263,10 @@ async def execute_multi_agent_task(
         dict: Execution result with status and agent details
     """
     # Validate metadata
-    validate_agent_metadata(task.metadata)
+    validate_agent_metadata(task.task_metadata)
 
     # Extract agent configuration
-    agent_config = task.metadata["agents"]
+    agent_config = task.task_metadata["agents"]
     sequence = agent_config["sequence"]
     roles = agent_config["roles"]
     synthesize = agent_config.get("synthesize", False)
@@ -292,7 +292,7 @@ async def execute_multi_agent_task(
             "id": task.id,
             "name": task.name,
             "description": task.description,
-            "metadata": task.metadata
+            "metadata": task.task_metadata
         }, f, indent=2)
 
     # Execute agents sequentially

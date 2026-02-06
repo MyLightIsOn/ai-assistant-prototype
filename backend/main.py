@@ -376,7 +376,7 @@ async def remove_from_scheduler(request: TaskIdRequest):
 @app.post("/api/tasks/execute")
 async def execute_task_manually(request: ManualExecuteRequest):
     """
-    Manually trigger a task execution (run now).
+    Manually trigger a task execution (run now) - body-based endpoint.
 
     Args:
         request: Task ID to execute
@@ -429,6 +429,66 @@ async def execute_task_manually(request: ManualExecuteRequest):
         logger.error(
             "Error executing task manually",
             extra={"metadata": {"error": str(e), "task_id": request.taskId}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
+
+
+@app.post("/api/tasks/{task_id}/execute")
+async def execute_task_by_id(task_id: str):
+    """
+    Manually trigger a task execution (run now) - RESTful path-based endpoint.
+
+    Args:
+        task_id: Task ID from URL path
+
+    Returns:
+        Success status and execution ID
+    """
+    import asyncio
+    from executor import execute_task
+
+    try:
+        # Verify task exists
+        db = SessionLocal()
+        try:
+            task = db.query(Task).filter_by(id=task_id).first()
+            if not task:
+                raise HTTPException(status_code=404, detail="Task not found")
+
+            # Execute task asynchronously
+            async def run_task():
+                nonlocal db
+                try:
+                    output, exit_code = await execute_task(
+                        task_id,
+                        db,
+                        broadcast_callback=manager.broadcast
+                    )
+                    return {"output": output, "exit_code": exit_code}
+                finally:
+                    db.close()
+
+            result = await run_task()
+
+            logger.info(
+                f"Manual execution of task {task_id} completed",
+                extra={"metadata": {"exit_code": result["exit_code"]}}
+            )
+
+            return {
+                "success": True,
+                "task_id": task_id,
+                "exit_code": result["exit_code"]
+            }
+
+        except HTTPException:
+            db.close()
+            raise
+
+    except Exception as e:
+        logger.error(
+            "Error executing task manually",
+            extra={"metadata": {"error": str(e), "task_id": task_id}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
 

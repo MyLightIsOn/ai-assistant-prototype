@@ -31,7 +31,7 @@ def sample_task():
     task.priority = 'default'
     task.nextRun = datetime(2026, 2, 5, 3, 0, 0)
     task.schedule = '0 3 * * *'
-    task.metadata = '{}'
+    task.task_metadata = '{}'
     return task
 
 

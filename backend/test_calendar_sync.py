@@ -17,7 +17,7 @@ def test_calendar_sync():
     task.priority = 'high'
     task.nextRun = datetime.now()
     task.schedule = '0 9 * * *'
-    task.metadata = '{}'
+    task.task_metadata = '{}'
 
     # Test 1: Create Calendar event
     print("Creating Calendar event...")
