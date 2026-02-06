@@ -48,7 +48,15 @@ export async function POST(
       });
 
       if (!response.ok) {
-        throw new Error(`Backend returned ${response.status}`);
+        const errorDetail = await response.text();
+        return NextResponse.json(
+          {
+            error: `Failed to trigger task (Backend returned ${response.status})`,
+            backendStatus: response.status,
+            detail: errorDetail
+          },
+          { status: 503 }
+        );
       }
 
       const data = await response.json();
@@ -56,7 +64,10 @@ export async function POST(
     } catch (backendError) {
       console.error("Failed to trigger task execution:", backendError);
       return NextResponse.json(
-        { error: "Failed to trigger task execution. Backend may be offline." },
+        {
+          error: "Failed to trigger task execution. Backend may be offline.",
+          detail: backendError instanceof Error ? backendError.message : String(backendError)
+        },
         { status: 503 }
       );
     }

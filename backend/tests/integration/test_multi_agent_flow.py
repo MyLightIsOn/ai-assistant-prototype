@@ -67,7 +67,7 @@ async def test_complete_multi_agent_workflow(mock_task, tmp_workspace, db_sessio
     - Activity logs are created for each lifecycle event
     - Workspace structure is maintained
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute", "review"],
@@ -182,7 +182,7 @@ async def test_multi_agent_workflow_with_synthesis(mock_task, tmp_workspace, db_
     - Synthesis activity logs created
     - Synthesis result included in output
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
@@ -279,7 +279,7 @@ async def test_multi_agent_workflow_without_synthesis(mock_task, tmp_workspace, 
     - No synthesis events broadcast
     - No synthesis activity logs created
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -340,7 +340,7 @@ async def test_agent_failure_stops_execution(mock_task, tmp_workspace, db_sessio
     - agent_failed activity log created
     - Overall status is 'failed'
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute", "review"],
@@ -429,7 +429,7 @@ async def test_websocket_event_order_and_content(mock_task, tmp_workspace, db_se
     - Events are in sequential order
     - Timestamps are present and valid
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
@@ -535,7 +535,7 @@ async def test_activity_log_creation_and_content(mock_task, tmp_workspace, db_se
     - Logs contain correct metadata
     - Execution IDs are consistent
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -600,7 +600,7 @@ async def test_multi_agent_workflow_without_db_session(mock_task, tmp_workspace)
     - Execution completes successfully
     - No activity logs attempted (graceful handling)
     """
-    mock_task.metadata = {
+    mock_task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],

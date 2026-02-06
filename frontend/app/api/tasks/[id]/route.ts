@@ -97,7 +97,11 @@ export async function PATCH(
     // Update task in database
     const task = await prisma.task.update({
       where: { id: id },
-      data: validatedData,
+      data: {
+        ...validatedData,
+        // Serialize metadata object to JSON string for SQLite storage
+        metadata: validatedData.metadata ? JSON.stringify(validatedData.metadata) : undefined,
+      },
     });
 
     // Sync with APScheduler via Python backend

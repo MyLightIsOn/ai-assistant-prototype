@@ -93,7 +93,7 @@ async def test_execute_multi_agent_task_success(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test description"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
@@ -148,7 +148,7 @@ async def test_execute_multi_agent_task_agent_failure(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute", "review"],
@@ -203,7 +203,7 @@ async def test_execute_multi_agent_task_with_synthesis_flag(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -250,7 +250,7 @@ async def test_execute_multi_agent_task_invalid_metadata(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -273,7 +273,7 @@ async def test_execute_multi_agent_task_creates_workspace_structure(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],

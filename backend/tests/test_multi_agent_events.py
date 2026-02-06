@@ -18,7 +18,7 @@ async def test_agent_started_websocket_event(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test description"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -69,7 +69,7 @@ async def test_agent_completed_websocket_event(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -119,7 +119,7 @@ async def test_agent_failed_websocket_event(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
@@ -178,7 +178,7 @@ async def test_synthesis_events_when_enabled(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research"],
@@ -235,7 +235,7 @@ async def test_all_websocket_events_in_order(tmp_path):
     task.id = "task_123"
     task.name = "Test Task"
     task.description = "Test"
-    task.metadata = {
+    task.task_metadata = {
         "agents": {
             "enabled": True,
             "sequence": ["research", "execute"],
