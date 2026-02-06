@@ -46,8 +46,8 @@ describe('/api/tasks', () => {
   describe('GET', () => {
     it('returns all tasks for authenticated user', async () => {
       const mockTasks = [
-        { id: '1', name: 'Task 1', enabled: true, userId: 'user-1', executions: [] },
-        { id: '2', name: 'Task 2', enabled: false, userId: 'user-1', executions: [] },
+        { id: '1', name: 'Task 1', enabled: true, userId: 'user-1', executions: [], metadata: null },
+        { id: '2', name: 'Task 2', enabled: false, userId: 'user-1', executions: [], metadata: null },
       ]
 
       vi.mocked(prisma.task.findMany).mockResolvedValue(mockTasks as any)
