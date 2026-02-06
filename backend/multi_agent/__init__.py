@@ -17,6 +17,9 @@ __all__ = [
     "read_agent_status",
     "get_agent_template",
     "generate_agent_instructions",
+    "is_multi_agent_task",
+    "get_agent_config",
+    "validate_agent_metadata",
 ]
 
 
@@ -33,5 +36,8 @@ def __getattr__(name):
         return locals()[name]
     elif name == "get_agent_template" or name == "generate_agent_instructions":
         from .roles import get_agent_template, generate_agent_instructions
+        return locals()[name]
+    elif name == "is_multi_agent_task" or name == "get_agent_config" or name == "validate_agent_metadata":
+        from .detector import is_multi_agent_task, get_agent_config, validate_agent_metadata
         return locals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
