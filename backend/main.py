@@ -287,50 +287,45 @@ async def get_logs(limit: int = Query(default=100, ge=1, le=1000)):
 
 
 @app.post("/api/scheduler/sync")
-async def sync_scheduler(request: TaskIdRequest):
+async def sync_scheduler(db: Session = Depends(get_db)):
     """
-    Sync a specific task or all tasks with APScheduler.
+    Manually trigger scheduler to sync all tasks from database.
 
-    Args:
-        request: Task ID request (optional - if not provided, syncs all tasks)
+    This endpoint loads all enabled tasks from the database and updates
+    the APScheduler job queue. Useful after creating or modifying tasks
+    to avoid waiting for automatic sync.
 
     Returns:
-        Success status and sync details
+        Success status with count of tasks loaded
     """
     try:
-        if request.taskId:
-            # Verify task exists
-            db = SessionLocal()
-            try:
-                task = db.query(Task).filter_by(id=request.taskId).first()
-                if not task:
-                    raise HTTPException(status_code=404, detail="Task not found")
-            finally:
-                db.close()
+        # Get count of enabled tasks before sync
+        enabled_count = db.query(Task).filter_by(enabled=True).count()
 
-        # Sync all tasks (scheduler handles individual task updates)
+        # Sync all tasks with scheduler
         task_scheduler.sync_tasks()
 
         logger.info(
             "Scheduler synced via API",
-            extra={"metadata": {"task_id": request.taskId if request.taskId else "all"}}
+            extra={"metadata": {"tasks_loaded": enabled_count}}
         )
 
         # Broadcast sync event to WebSocket clients
         await manager.broadcast({
             "type": "scheduler_sync",
-            "data": {"task_id": request.taskId if request.taskId else None},
+            "data": {"tasks_loaded": enabled_count},
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-        return {"success": True, "synced": request.taskId if request.taskId else "all"}
+        return {
+            "message": "Scheduler synced",
+            "tasks_loaded": enabled_count
+        }
 
-    except HTTPException:
-        raise
     except Exception as e:
         logger.error(
             "Error syncing scheduler",
-            extra={"metadata": {"error": str(e), "task_id": request.taskId if request else None}}
+            extra={"metadata": {"error": str(e)}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to sync scheduler: {str(e)}")
 
