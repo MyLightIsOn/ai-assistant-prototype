@@ -7,6 +7,9 @@ Any changes to the Prisma schema should be reflected here to maintain database c
 
 from datetime import datetime
 from typing import Optional, List
+import time
+import random
+import string
 
 from sqlalchemy import (
     Column, String, DateTime, Boolean, Integer, ForeignKey, Text, JSON
@@ -18,6 +21,67 @@ from database import Base
 
 
 # ============================================================================
+# ID Generation (CUID-compatible)
+# ============================================================================
+
+def generate_cuid() -> str:
+    """
+    Generate a CUID-compatible ID using Python standard library.
+
+    Format: c + timestamp(base36) + counter(base36) + fingerprint + random
+
+    This mimics Prisma's cuid() format:
+    - Starts with 'c'
+    - Timestamp in base36 for compactness
+    - Counter for same-millisecond uniqueness
+    - 4-char fingerprint for machine identification
+    - 8-char random suffix for additional entropy
+
+    Example output: clh1234abcd5678efgh9012ijkl
+    Length: ~25-30 characters (compatible with Prisma CUID spec)
+    """
+    # Timestamp in milliseconds, converted to base36
+    timestamp = int(time.time() * 1000)
+    timestamp_b36 = _to_base36(timestamp)
+
+    # Counter (0-1679615) in base36 for same-millisecond uniqueness
+    counter = random.randint(0, 36**4 - 1)
+    counter_b36 = _to_base36(counter).zfill(4)
+
+    # 4-character fingerprint (stable per process)
+    fingerprint = _get_fingerprint()
+
+    # 8-character random suffix
+    random_suffix = ''.join(random.choices(string.ascii_lowercase + string.digits, k=8))
+
+    return f"c{timestamp_b36}{counter_b36}{fingerprint}{random_suffix}"
+
+
+def _to_base36(num: int) -> str:
+    """Convert integer to base36 string (0-9, a-z)."""
+    chars = string.digits + string.ascii_lowercase
+    if num == 0:
+        return '0'
+
+    result = []
+    while num:
+        num, rem = divmod(num, 36)
+        result.append(chars[rem])
+    return ''.join(reversed(result))
+
+
+def _get_fingerprint() -> str:
+    """
+    Get a 4-character fingerprint for this process.
+    Uses process ID for uniqueness across concurrent processes.
+    """
+    import os
+    pid = os.getpid()
+    # Convert PID to base36 and take last 4 chars
+    return _to_base36(pid)[-4:].zfill(4)
+
+
+# ============================================================================
 # SQLAlchemy Models (Database Layer)
 # ============================================================================
 
@@ -25,7 +89,7 @@ class User(Base):
     """User model - mirrors Prisma User model."""
     __tablename__ = "User"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     email = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=True)
     passwordHash = Column(String, nullable=False)
@@ -41,7 +105,7 @@ class Session(Base):
     """Session model - mirrors Prisma Session model."""
     __tablename__ = "Session"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     sessionToken = Column(String, unique=True, nullable=False, index=True)
     userId = Column(String, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
     expires = Column(DateTime, nullable=False)
@@ -58,7 +122,7 @@ class Task(Base):
     """
     __tablename__ = "Task"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     userId = Column(String, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
     name = Column(String, nullable=False)
     description = Column(String, nullable=True)
@@ -83,7 +147,7 @@ class TaskExecution(Base):
     """TaskExecution model - mirrors Prisma TaskExecution model."""
     __tablename__ = "TaskExecution"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     taskId = Column(String, ForeignKey("Task.id", ondelete="CASCADE"), nullable=False)
     status = Column(String, nullable=False)  # "running", "completed", "failed"
     startedAt = Column(DateTime, nullable=False, default=datetime.utcnow)
@@ -104,7 +168,7 @@ class ActivityLog(Base):
     """
     __tablename__ = "ActivityLog"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     executionId = Column(String, ForeignKey("TaskExecution.id"), nullable=True)
     type = Column(String, nullable=False)  # "task_start", "task_complete", "notification_sent", "error"
     message = Column(String, nullable=False)
@@ -119,7 +183,7 @@ class Notification(Base):
     """Notification model - mirrors Prisma Notification model."""
     __tablename__ = "Notification"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     title = Column(String, nullable=False)
     message = Column(String, nullable=False)
     priority = Column(String, nullable=False, default="default")
@@ -133,7 +197,7 @@ class AiMemory(Base):
     """AiMemory model - mirrors Prisma AiMemory model."""
     __tablename__ = "AiMemory"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     key = Column(String, unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # JSON string
     category = Column(String, nullable=True)  # "preference", "context", "fact"
@@ -145,7 +209,7 @@ class DigestSettings(Base):
     """DigestSettings model - mirrors Prisma DigestSettings model."""
     __tablename__ = "DigestSettings"
 
-    id = Column(String, primary_key=True)
+    id = Column(String, primary_key=True, default=generate_cuid)
     dailyEnabled = Column(Boolean, nullable=False, default=True)
     dailyTime = Column(String, nullable=False, default="20:00")  # "HH:MM" format (24-hour)
     weeklyEnabled = Column(Boolean, nullable=False, default=True)
