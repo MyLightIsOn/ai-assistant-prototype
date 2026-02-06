@@ -71,6 +71,8 @@ export async function POST(request: NextRequest) {
       data: {
         ...validatedData,
         userId: session.user.id,
+        // Serialize metadata object to JSON string for SQLite storage
+        metadata: validatedData.metadata ? JSON.stringify(validatedData.metadata) : null,
       },
     });
 

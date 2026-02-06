@@ -24,6 +24,7 @@ interface DigestSettings {
 
 export function DigestSettings() {
   const queryClient = useQueryClient()
+  const backendUrl = process.env.NEXT_PUBLIC_BACKEND_URL || "http://localhost:8000"
 
   // Local state for form fields
   const [dailyEnabled, setDailyEnabled] = useState(true)
@@ -37,7 +38,7 @@ export function DigestSettings() {
   const { data: settings, isLoading } = useQuery<DigestSettings>({
     queryKey: ["digest-settings"],
     queryFn: async () => {
-      const res = await fetch("http://localhost:8000/api/settings/digest")
+      const res = await fetch(`${backendUrl}/api/settings/digest`)
       if (!res.ok) {
         throw new Error("Failed to fetch digest settings")
       }
@@ -63,7 +64,7 @@ export function DigestSettings() {
   // Update settings mutation
   const updateMutation = useMutation({
     mutationFn: async (updates: Partial<DigestSettings>) => {
-      const res = await fetch("http://localhost:8000/api/settings/digest", {
+      const res = await fetch(`${backendUrl}/api/settings/digest`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -87,7 +88,7 @@ export function DigestSettings() {
   // Send test digest mutation
   const testMutation = useMutation({
     mutationFn: async (type: "daily" | "weekly") => {
-      const res = await fetch(`http://localhost:8000/api/settings/digest/test?digest_type=${type}`, {
+      const res = await fetch(`${backendUrl}/api/settings/digest/test?digest_type=${type}`, {
         method: "POST",
       })
       if (!res.ok) {
