@@ -61,10 +61,11 @@ async def execute_claude_task(
         logger.info(f"Starting Claude task: {task_description[:100]}...")
         logger.debug(f"Working directory: {workspace_path}")
 
-        # Spawn subprocess with claude --yes command
+        # Spawn subprocess with claude --yes command and task as argument
         process = await asyncio.create_subprocess_exec(
             'claude',
             '--yes',
+            task_description,  # Pass task as positional argument
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
@@ -72,13 +73,7 @@ async def execute_claude_task(
         )
 
         logger.info(f"Claude subprocess spawned (PID: {process.pid})")
-
-        # Send task description via stdin
-        if process.stdin:
-            process.stdin.write(task_description.encode('utf-8'))
-            await process.stdin.drain()
-            process.stdin.close()
-            logger.debug("Task description sent to Claude via stdin")
+        logger.debug(f"Task passed as CLI argument: {task_description[:100]}...")
 
         # Read output from both stdout and stderr
         output_complete = False
