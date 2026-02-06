@@ -20,9 +20,183 @@ from claude_interface import execute_claude_task
 from logger import get_logger
 from ntfy_client import send_notification
 from gmail_sender import get_gmail_sender
+from multi_agent import (
+    is_multi_agent_task,
+    execute_multi_agent_task
+)
 
 # Setup logging
 logger = get_logger()
+
+
+async def _execute_multi_agent(
+    task: Task,
+    execution: TaskExecution,
+    db: Session,
+    broadcast_callback: Optional[callable] = None
+) -> tuple[str, int]:
+    """
+    Execute multi-agent task via orchestrator.
+
+    Args:
+        task: Task instance
+        execution: TaskExecution instance
+        db: Database session
+        broadcast_callback: Optional WebSocket broadcast function
+
+    Returns:
+        tuple: (output, exit_code)
+    """
+    start_time = datetime.now(timezone.utc)
+
+    try:
+        # Execute multi-agent orchestration
+        result = await execute_multi_agent_task(
+            task=task,
+            execution_id=execution.id,
+            broadcast_callback=broadcast_callback
+        )
+
+        end_time = datetime.now(timezone.utc)
+
+        # Determine status and exit code
+        if result["status"] == "completed":
+            exit_code = 0
+            execution.status = "completed"
+
+            # Format output
+            output_parts = [
+                f"Multi-Agent Execution Complete",
+                f"Completed Agents: {', '.join(result['completed_agents'])}",
+                f"Workspace: {result['workspace']}"
+            ]
+
+            # Add synthesis if present
+            if "synthesis" in result:
+                synthesis = result["synthesis"]
+                output_parts.append("\n=== Synthesis ===")
+                if "summary" in synthesis:
+                    output_parts.append(f"Summary: {synthesis['summary']}")
+                if "key_achievements" in synthesis:
+                    output_parts.append(f"Achievements: {', '.join(synthesis['key_achievements'])}")
+
+            output = "\n".join(output_parts)
+        else:
+            # Failed
+            exit_code = 1
+            execution.status = "failed"
+            output = f"Multi-Agent Execution Failed\n"
+            output += f"Failed Agent: {result.get('failed_agent', 'unknown')}\n"
+            output += f"Error: {result.get('error', 'Unknown error')}\n"
+            output += f"Completed Agents: {', '.join(result.get('completed_agents', []))}"
+
+        # Update execution record
+        execution.completedAt = end_time
+        execution.output = output[:10000]  # Limit output size
+        execution.duration = int((end_time - start_time).total_seconds() * 1000)
+
+        # Update task lastRun
+        task.lastRun = start_time
+
+        db.commit()
+
+        # Log completion
+        log_entry = ActivityLog(
+            id=str(uuid.uuid4()),
+            executionId=execution.id,
+            type="task_complete" if exit_code == 0 else "task_error",
+            message=f"Multi-agent task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
+            metadata_={
+                "execution_mode": "multi_agent",
+                "completed_agents": result.get("completed_agents", []),
+                "failed_agent": result.get("failed_agent"),
+                "exit_code": exit_code,
+                "duration_ms": execution.duration
+            }
+        )
+        db.add(log_entry)
+        db.commit()
+
+        logger.info(f"Multi-agent task {task.id} completed with exit code {exit_code}")
+
+        # Broadcast completion
+        if broadcast_callback:
+            await broadcast_callback({
+                "type": "task_status",
+                "data": {
+                    "task_id": task.id,
+                    "status": execution.status,
+                    "execution_id": execution.id,
+                    "exit_code": exit_code
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
+        # Send notification if configured
+        if should_notify(task, execution.status):
+            send_notification(
+                title=f"Task {'Completed' if exit_code == 0 else 'Failed'}: {task.name}",
+                message=f"Multi-agent execution {'completed' if exit_code == 0 else 'failed'}\nAgents: {len(result.get('completed_agents', []))}",
+                priority="default" if exit_code == 0 else "high",
+                tags=["task", "multi-agent", "completion" if exit_code == 0 else "error"],
+                db_session=db
+            )
+
+        return output, exit_code
+
+    except Exception as e:
+        # Handle execution error
+        end_time = datetime.now(timezone.utc)
+        execution.status = "failed"
+        execution.completedAt = end_time
+        execution.output = f"Multi-agent error: {str(e)}"
+        execution.duration = int((end_time - start_time).total_seconds() * 1000)
+
+        task.lastRun = start_time
+        db.commit()
+
+        # Log error
+        log_entry = ActivityLog(
+            id=str(uuid.uuid4()),
+            executionId=execution.id,
+            type="task_error",
+            message=f"Multi-agent task '{task.name}' failed: {str(e)}",
+            metadata_={
+                "execution_mode": "multi_agent",
+                "error": str(e),
+                "error_type": type(e).__name__,
+                "duration_ms": execution.duration
+            }
+        )
+        db.add(log_entry)
+        db.commit()
+
+        logger.error(f"Multi-agent task {task.id} failed: {e}")
+
+        # Broadcast error
+        if broadcast_callback:
+            await broadcast_callback({
+                "type": "task_status",
+                "data": {
+                    "task_id": task.id,
+                    "status": "failed",
+                    "execution_id": execution.id,
+                    "error": str(e)
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
+        # Send notification
+        if should_notify(task, "failed"):
+            send_notification(
+                title=f"Task Failed: {task.name}",
+                message=f"Multi-agent error: {str(e)}",
+                priority="urgent",
+                tags=["task", "multi-agent", "error"],
+                db_session=db
+            )
+
+        raise
 
 
 async def execute_task(
@@ -87,7 +261,17 @@ async def execute_task(
             "timestamp": datetime.now(timezone.utc).isoformat()
         })
 
-    # Prepare workspace directory
+    # Check if this is a multi-agent task
+    if is_multi_agent_task(task.task_metadata):
+        logger.info(f"Task {task_id} is multi-agent, routing to orchestrator")
+        return await _execute_multi_agent(
+            task,
+            execution,
+            db,
+            broadcast_callback
+        )
+
+    # Prepare workspace directory for single-agent execution
     project_root = Path(__file__).parent.parent
     workspace_path = project_root / "ai-workspace"
     task_workspace = workspace_path / "tasks" / execution.id
