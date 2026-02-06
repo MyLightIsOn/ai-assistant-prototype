@@ -5,7 +5,7 @@ This module provides async functions to spawn and interact with the Claude Code 
 as a subprocess, streaming output in real-time and handling errors gracefully.
 
 Key features:
-- Spawns Claude CLI with --yes flag for non-interactive mode
+- Spawns Claude CLI with --dangerously-skip-permissions flag for non-interactive mode
 - Sets working directory to ai-workspace
 - Streams stdout/stderr line-by-line
 - Captures exit codes
@@ -61,10 +61,10 @@ async def execute_claude_task(
         logger.info(f"Starting Claude task: {task_description[:100]}...")
         logger.debug(f"Working directory: {workspace_path}")
 
-        # Spawn subprocess with claude --yes command and task as argument
+        # Spawn subprocess with claude --dangerously-skip-permissions command and task as argument
         process = await asyncio.create_subprocess_exec(
             'claude',
-            '--yes',
+            '--dangerously-skip-permissions',
             task_description,  # Pass task as positional argument
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
