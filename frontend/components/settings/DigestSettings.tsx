@@ -48,12 +48,15 @@ export function DigestSettings() {
   // Update local state when data is fetched
   useEffect(() => {
     if (settings) {
-      setDailyEnabled(settings.dailyEnabled)
-      setDailyTime(settings.dailyTime)
-      setWeeklyEnabled(settings.weeklyEnabled)
-      setWeeklyDay(settings.weeklyDay)
-      setWeeklyTime(settings.weeklyTime)
-      setRecipientEmail(settings.recipientEmail)
+      // Use queueMicrotask to avoid cascading renders
+      queueMicrotask(() => {
+        setDailyEnabled(settings.dailyEnabled)
+        setDailyTime(settings.dailyTime)
+        setWeeklyEnabled(settings.weeklyEnabled)
+        setWeeklyDay(settings.weeklyDay)
+        setWeeklyTime(settings.weeklyTime)
+        setRecipientEmail(settings.recipientEmail)
+      })
     }
   }, [settings])
 

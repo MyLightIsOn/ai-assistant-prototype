@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils'
 export interface AgentOutput {
   agentName: string
   status: 'pending' | 'running' | 'completed' | 'failed'
-  structuredOutput?: Record<string, any>
+  structuredOutput?: Record<string, unknown>
   narrativeOutput?: string
 }
 
@@ -33,12 +33,15 @@ const STATUS_LABELS = {
 }
 
 export function AgentOutputViewer({ agents, className }: AgentOutputViewerProps) {
-  const [activeTab, setActiveTab] = useState<string>(agents[0]?.agentName || '')
+  // Compute initial activeTab value
+  const initialTab = agents[0]?.agentName || ''
+  const [activeTab, setActiveTab] = useState<string>(initialTab)
 
-  // Sync activeTab when agents change (e.g., if agents added dynamically)
+  // Only update activeTab when agents change and current tab is no longer valid
   useEffect(() => {
     if (agents.length > 0 && !agents.some(a => a.agentName === activeTab)) {
-      setActiveTab(agents[0].agentName)
+      // Use a microtask to avoid cascading renders
+      queueMicrotask(() => setActiveTab(agents[0].agentName))
     }
   }, [agents, activeTab])
 

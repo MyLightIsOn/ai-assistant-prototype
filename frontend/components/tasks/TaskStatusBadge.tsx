@@ -7,8 +7,7 @@ import {
   XCircle,
   Clock,
   PlayCircle,
-  PauseCircle,
-  AlertCircle
+  PauseCircle
 } from "lucide-react"
 
 interface TaskStatusBadgeProps {

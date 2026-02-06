@@ -4,7 +4,7 @@ import { WebSocketClient } from '../websocket';
 // Mock WebSocket
 class MockWebSocket {
   url: string;
-  readyState = WebSocket.CONNECTING;
+  readyState: number = WebSocket.CONNECTING;
   onopen: ((event: Event) => void) | null = null;
   onclose: ((event: CloseEvent) => void) | null = null;
   onerror: ((event: Event) => void) | null = null;

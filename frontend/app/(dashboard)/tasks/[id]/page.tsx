@@ -235,7 +235,7 @@ export default function TaskDetailPage() {
         <AlertCircle className="h-12 w-12 text-muted-foreground mb-4" />
         <h2 className="text-2xl font-semibold mb-2">Task not found</h2>
         <p className="text-muted-foreground mb-4">
-          The task you're looking for doesn't exist
+          The task you&apos;re looking for doesn&apos;t exist
         </p>
         <Button onClick={() => router.push('/tasks')}>
           <ChevronLeft className="mr-2 h-4 w-4" />
