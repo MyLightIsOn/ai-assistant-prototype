@@ -4,7 +4,7 @@ import bcrypt from 'bcryptjs'
 import path from 'path'
 
 // Set DATABASE_URL to point to the correct database
-process.env.DATABASE_URL = `file:${path.resolve(__dirname, '../../..', 'ai-assistant.db')}`
+process.env.DATABASE_URL = `file:${path.resolve(__dirname, '../..', 'ai-assistant.db')}`
 
 const prisma = new PrismaClient()
 

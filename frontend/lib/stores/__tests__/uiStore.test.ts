@@ -5,13 +5,16 @@ describe('uiStore', () => {
   beforeEach(() => {
     // Clear localStorage before each test
     localStorage.clear();
-    // Reset the zustand store state
-    useUiStore.setState({
-      sidebarOpen: true,
-      theme: 'dark',
-      terminalVisible: false,
-      notificationsOpen: false,
-    }, true);
+    // Reset the zustand store state to defaults
+    // Note: We use act() to wrap setState and avoid calling replace (second param)
+    // which would bypass the persist middleware
+    const { result } = renderHook(() => useUiStore());
+    act(() => {
+      result.current.setSidebarOpen(true);
+      result.current.setTheme('dark');
+      result.current.setTerminalVisible(false);
+      result.current.setNotificationsOpen(false);
+    });
   });
 
   it('initializes with default values', () => {

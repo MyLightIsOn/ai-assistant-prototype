@@ -75,7 +75,7 @@ export function StatsOverview() {
         nextRun: nextScheduledTask.nextRun!,
       } : null,
     }
-  }, [tasks])
+  }, [tasks, successRateData?.success_rate])
 
   if (isLoading) {
     return (
