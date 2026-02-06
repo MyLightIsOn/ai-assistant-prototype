@@ -306,6 +306,15 @@ async def execute_multi_agent_task(
         # Update status to running
         update_agent_status(workspace, agent_name, AgentStatus.RUNNING)
 
+        # Broadcast agent started event
+        if broadcast_callback:
+            await broadcast_callback({
+                "type": "agent_started",
+                "agent_name": agent_name,
+                "role": role_config.get("type"),
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
         # Execute agent
         try:
             result = await execute_single_agent(
@@ -325,6 +334,17 @@ async def execute_multi_agent_task(
                     error=result.error
                 )
 
+                # Broadcast agent failed event
+                if broadcast_callback:
+                    await broadcast_callback({
+                        "type": "agent_failed",
+                        "agent_name": agent_name,
+                        "error": result.error or f"Agent {agent_name} failed",
+                        "exit_code": result.exit_code,
+                        "duration_ms": result.duration_ms,
+                        "timestamp": datetime.now(timezone.utc).isoformat()
+                    })
+
                 return {
                     "status": "failed",
                     "failed_agent": agent_name,
@@ -341,6 +361,16 @@ async def execute_multi_agent_task(
                 exit_code=0
             )
 
+            # Broadcast agent completed event
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "agent_completed",
+                    "agent_name": agent_name,
+                    "status": "completed",
+                    "duration_ms": result.duration_ms,
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+
             # Update shared context
             update_shared_context(workspace, agent_name, result.output)
 
@@ -354,6 +384,15 @@ async def execute_multi_agent_task(
                 AgentStatus.FAILED,
                 error=str(e)
             )
+
+            # Broadcast agent failed event
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "agent_failed",
+                    "agent_name": agent_name,
+                    "error": str(e),
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
 
             return {
                 "status": "failed",
@@ -373,16 +412,42 @@ async def execute_multi_agent_task(
     # Perform synthesis if requested
     if synthesize:
         logger.info("Starting result synthesis")
+
+        # Broadcast synthesis started event
+        if broadcast_callback:
+            await broadcast_callback({
+                "type": "synthesis_started",
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
+
         synthesis_result = await synthesize_results(workspace)
 
         if synthesis_result["status"] == "completed":
             result["synthesis"] = synthesis_result.get("synthesis", {})
             result["synthesis_duration_ms"] = synthesis_result.get("duration_ms", 0)
             logger.info("Synthesis completed successfully")
+
+            # Broadcast synthesis completed event
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "synthesis_completed",
+                    "status": "completed",
+                    "duration_ms": synthesis_result.get("duration_ms", 0),
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
         else:
             # Synthesis failed, but agents completed - mark as partial success
             result["synthesis_failed"] = True
             result["synthesis_error"] = synthesis_result.get("error", "Synthesis failed")
             logger.warning(f"Synthesis failed: {result['synthesis_error']}")
+
+            # Broadcast synthesis completed event (with failure status)
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "synthesis_completed",
+                    "status": "failed",
+                    "error": synthesis_result.get("error", "Synthesis failed"),
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
 
     return result
