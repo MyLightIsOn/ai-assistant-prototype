@@ -1,0 +1,75 @@
+[
+  {
+    "name": "Implement User Authentication",
+    "description": "EXAMPLE 1: Standard Workflow - Demonstrates the complete research → execute → review workflow with synthesis enabled. This is the recommended pattern for implementing new features. The research agent gathers requirements and best practices, the execute agent implements the solution, the review agent validates the implementation, and the orchestrator synthesizes all findings into a coherent final report.",
+    "command": "Implement user authentication system with NextAuth.js, including login/logout functionality, session management, and password hashing with bcrypt.",
+    "schedule": null,
+    "metadata": {
+      "agents": {
+        "enabled": true,
+        "sequence": ["research", "execute", "review"],
+        "synthesize": true,
+        "roles": {
+          "research": {
+            "type": "research",
+            "instructions": "Research NextAuth.js configuration for Next.js App Router, session-based authentication patterns, and bcrypt password hashing best practices. Review existing authentication implementations in the codebase if any. Focus on security considerations and user session management."
+          },
+          "execute": {
+            "type": "execute",
+            "instructions": "Implement the authentication system based on research findings. Create necessary API routes, authentication provider setup, middleware for protected routes, and database schema for user management. Follow the project's coding standards and use TypeScript throughout."
+          },
+          "review": {
+            "type": "review",
+            "instructions": "Review the implementation for security vulnerabilities, proper error handling, session management correctness, and adherence to NextAuth.js best practices. Verify password hashing is implemented correctly with bcrypt. Check for edge cases and potential issues."
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "Security Audit",
+    "description": "EXAMPLE 2: Custom Roles - Demonstrates how to define custom agent roles beyond the standard research/execute/review pattern. This example uses 'audit' and 'report' custom roles for security analysis. Custom roles require explicit instructions and type: 'custom'. Useful for specialized workflows that don't fit the standard pattern.",
+    "command": "Perform comprehensive security audit of the AI assistant application, focusing on authentication, API security, file system access controls, and potential vulnerabilities in the Claude Code subprocess integration.",
+    "schedule": null,
+    "metadata": {
+      "agents": {
+        "enabled": true,
+        "sequence": ["audit", "report"],
+        "synthesize": true,
+        "roles": {
+          "audit": {
+            "type": "custom",
+            "instructions": "Act as a security auditor. Perform a comprehensive security analysis of the codebase:\n1. Review authentication implementation for vulnerabilities (session fixation, XSS, CSRF)\n2. Analyze API routes for proper authorization and input validation\n3. Check file system access patterns and AI workspace boundaries\n4. Examine subprocess execution security (Claude Code integration)\n5. Review environment variable handling and secrets management\n6. Identify potential SQL injection, path traversal, or command injection risks\n7. Check dependencies for known vulnerabilities\n\nDocument all findings with severity levels (Critical, High, Medium, Low) and provide specific examples of vulnerable code."
+          },
+          "report": {
+            "type": "custom",
+            "instructions": "Act as a security report writer. Based on the audit findings:\n1. Organize findings by severity level\n2. For each vulnerability, provide:\n   - Description of the issue\n   - Potential impact\n   - Location in codebase (file paths and line numbers)\n   - Proof of concept or exploitation scenario\n   - Recommended remediation with code examples\n3. Create an executive summary with key statistics\n4. Prioritize remediation efforts\n5. Provide a security checklist for future development\n\nFormat the report in markdown with clear sections and actionable recommendations."
+          }
+        }
+      }
+    }
+  },
+  {
+    "name": "Refactor Component",
+    "description": "EXAMPLE 3: Simple Workflow - Demonstrates a minimal configuration with only research and execute agents, synthesis disabled. This lighter-weight approach is suitable for smaller tasks where comprehensive review and final synthesis aren't necessary. Faster execution, appropriate for refactoring or small improvements where the execute agent can self-validate.",
+    "command": "Refactor the TaskList component to improve performance and readability. Extract repeated logic into custom hooks, optimize re-renders, and add proper TypeScript types.",
+    "schedule": null,
+    "metadata": {
+      "agents": {
+        "enabled": true,
+        "sequence": ["research", "execute"],
+        "synthesize": false,
+        "roles": {
+          "research": {
+            "type": "research",
+            "instructions": "Analyze the current TaskList component implementation. Identify performance bottlenecks, code duplication, areas where custom hooks would improve code organization, and missing or weak TypeScript types. Look for React best practices violations."
+          },
+          "execute": {
+            "type": "execute",
+            "instructions": "Refactor the TaskList component based on research findings:\n1. Extract custom hooks for reusable logic (e.g., useTaskOperations, useTaskFilters)\n2. Optimize re-renders using React.memo, useMemo, useCallback where appropriate\n3. Add comprehensive TypeScript types for props, state, and component interfaces\n4. Improve code readability with better variable names and component structure\n5. Maintain existing functionality while improving code quality\n\nEnsure backward compatibility and test the refactored component."
+          }
+        }
+      }
+    }
+  }
+]
