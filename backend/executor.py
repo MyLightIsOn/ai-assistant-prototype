@@ -139,8 +139,7 @@ async def _execute_multi_agent(
                 title=f"Task {'Completed' if exit_code == 0 else 'Failed'}: {task.name}",
                 message=f"Multi-agent execution {'completed' if exit_code == 0 else 'failed'}\nAgents: {len(result.get('completed_agents', []))}",
                 priority="default" if exit_code == 0 else "high",
-                tags=["task", "multi-agent", "completion" if exit_code == 0 else "error"],
-                db_session=db
+                tags=f"task,multi-agent,{'completion' if exit_code == 0 else 'error'}"
             )
 
         return output, exit_code
@@ -193,8 +192,7 @@ async def _execute_multi_agent(
                 title=f"Task Failed: {task.name}",
                 message=f"Multi-agent error: {str(e)}",
                 priority="urgent",
-                tags=["task", "multi-agent", "error"],
-                db_session=db
+                tags="task,multi-agent,error"
             )
 
         raise
@@ -371,8 +369,7 @@ Please execute this task and provide the output.
                 title=f"Task {'Completed' if exit_code == 0 else 'Failed'}: {task.name}",
                 message=f"Duration: {execution.duration}ms\nExit code: {exit_code}",
                 priority="default" if exit_code == 0 else "high",
-                tags=["task", "completion" if exit_code == 0 else "error"],
-                db_session=db
+                tags=f"task,{'completion' if exit_code == 0 else 'error'}"
             )
 
         # Send email notification if configured
@@ -431,8 +428,7 @@ Please execute this task and provide the output.
                 title=f"Task Timeout: {task.name}",
                 message=f"Task exceeded 1 hour timeout",
                 priority="urgent",
-                tags=["task", "timeout", "error"],
-                db_session=db
+                tags="task,timeout,error"
             )
 
         # Send email notification if configured
@@ -495,8 +491,7 @@ Please execute this task and provide the output.
                 title=f"Task Failed: {task.name}",
                 message=f"Error: {str(e)}",
                 priority="urgent",
-                tags=["task", "error"],
-                db_session=db
+                tags="task,error"
             )
 
         # Send email notification if configured
