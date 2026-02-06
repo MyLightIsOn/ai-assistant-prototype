@@ -7,6 +7,7 @@ import type { Task } from '@/lib/types/api'
 
 const mockTask: Task = {
   id: 'task-1',
+  userId: 'user-1',
   name: 'Test Task',
   description: 'Test description',
   schedule: '0 9 * * *',
@@ -14,6 +15,7 @@ const mockTask: Task = {
   command: 'claude',
   args: 'test',
   priority: 'default',
+  notifyOn: 'completion,error',
   createdAt: new Date('2024-01-01').toISOString(),
   updatedAt: new Date('2024-01-01').toISOString(),
   lastRun: null,
@@ -168,5 +170,32 @@ describe('TaskCard', () => {
         data: { enabled: false },
       })
     })
+  })
+
+  it('shows multi-agent badge when task has multi-agent metadata', () => {
+    const multiAgentTask = {
+      ...mockTask,
+      metadata: {
+        multi_agent: {
+          agents: [
+            { name: 'agent1', role: 'role1' },
+            { name: 'agent2', role: 'role2' },
+            { name: 'agent3', role: 'role3' },
+          ],
+          synthesis: true,
+        },
+      },
+    }
+
+    renderWithQueryClient(<TaskCard task={multiAgentTask} />)
+
+    expect(screen.getByText(/3 agents$/i)).toBeInTheDocument()
+    expect(screen.getByTestId('synthesis-icon')).toBeInTheDocument()
+  })
+
+  it('does not show multi-agent badge when task has no multi-agent metadata', () => {
+    renderWithQueryClient(<TaskCard task={mockTask} />)
+
+    expect(screen.queryByTestId('multi-agent-badge')).not.toBeInTheDocument()
   })
 })

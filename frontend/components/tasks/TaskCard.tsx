@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu"
 import { TaskStatusBadge } from "./TaskStatusBadge"
+import { MultiAgentBadge } from "./MultiAgentBadge"
 import {
   MoreVertical,
   Play,
@@ -178,6 +179,12 @@ export function TaskCard({ task, onTrigger }: TaskCardProps) {
             >
               {task.priority}
             </Badge>
+            {task.metadata?.multi_agent && (
+              <MultiAgentBadge
+                agentCount={task.metadata.multi_agent.agents.length}
+                hasSynthesis={task.metadata.multi_agent.synthesis}
+              />
+            )}
           </div>
 
           <div className="space-y-2 text-sm">
