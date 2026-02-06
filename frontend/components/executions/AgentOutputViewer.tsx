@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent } from '@/components/ui/card'
@@ -34,6 +34,13 @@ const STATUS_LABELS = {
 
 export function AgentOutputViewer({ agents, className }: AgentOutputViewerProps) {
   const [activeTab, setActiveTab] = useState<string>(agents[0]?.agentName || '')
+
+  // Sync activeTab when agents change (e.g., if agents added dynamically)
+  useEffect(() => {
+    if (agents.length > 0 && !agents.some(a => a.agentName === activeTab)) {
+      setActiveTab(agents[0].agentName)
+    }
+  }, [agents, activeTab])
 
   if (agents.length === 0) {
     return (

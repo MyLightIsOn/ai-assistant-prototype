@@ -30,7 +30,13 @@ export async function GET() {
       },
     });
 
-    return NextResponse.json({ tasks });
+    // Parse metadata JSON strings (SQLite stores as string, not JSON type)
+    const tasksWithParsedMetadata = tasks.map(task => ({
+      ...task,
+      metadata: task.metadata ? JSON.parse(task.metadata as string) : null
+    }));
+
+    return NextResponse.json({ tasks: tasksWithParsedMetadata });
   } catch (error) {
     console.error("Error fetching tasks:", error);
     return NextResponse.json(

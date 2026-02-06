@@ -1,5 +1,6 @@
 "use client"
 
+import { useCallback } from "react"
 import { useParams, useRouter } from "next/navigation"
 import { useTask } from "@/lib/hooks/useTasks"
 import { useTaskExecutions } from "@/lib/hooks/useTaskExecutions"
@@ -46,6 +47,10 @@ export default function TaskDetailPage() {
   const { data: executions, isLoading: executionsLoading, refetch: refetchExecutions } = useTaskExecutions(taskId)
   const { subscribe, isConnected } = useWebSocket({ autoConnect: true })
 
+  // Stable callbacks to prevent WebSocket subscription re-creation
+  const stableRefetchTask = useCallback(() => refetchTask(), [refetchTask])
+  const stableRefetchExecutions = useCallback(() => refetchExecutions(), [refetchExecutions])
+
   // Multi-agent state
   const [agents, setAgents] = useState<Agent[]>([])
   const [agentOutputs, setAgentOutputs] = useState<AgentOutput[]>([])
@@ -79,24 +84,40 @@ export default function TaskDetailPage() {
     const unsubscribe = subscribe('execution_complete', (message) => {
       const data = message.data as { executionId: string; taskId: string }
       if (data.taskId === taskId) {
-        refetchTask()
-        refetchExecutions()
+        stableRefetchTask()
+        stableRefetchExecutions()
       }
     })
 
     const unsubscribeStatus = subscribe('status_update', () => {
-      refetchTask()
-      refetchExecutions()
+      stableRefetchTask()
+      stableRefetchExecutions()
     })
 
     // Agent event handlers
     const unsubscribeAgentStarted = subscribe('agent_started', (message) => {
       const data = (message.data as AgentStartedMessage['data'])
-      setAgents(prev => prev.map(agent =>
-        agent.name === data.agent_name
-          ? { ...agent, status: 'running' }
-          : agent
-      ))
+
+      // Validate data structure and agent exists
+      if (!data?.agent_name) {
+        console.error('Invalid agent_started event: missing agent_name', data)
+        return
+      }
+
+      setAgents(prev => {
+        const hasAgent = prev.some(a => a.name === data.agent_name)
+        if (!hasAgent) {
+          console.error(`Unknown agent in agent_started event: ${data.agent_name}`)
+          return prev
+        }
+
+        return prev.map(agent =>
+          agent.name === data.agent_name
+            ? { ...agent, status: 'running' }
+            : agent
+        )
+      })
+
       setAgentOutputs(prev => prev.map(output =>
         output.agentName === data.agent_name
           ? { ...output, status: 'running' }
@@ -106,11 +127,27 @@ export default function TaskDetailPage() {
 
     const unsubscribeAgentCompleted = subscribe('agent_completed', (message) => {
       const data = (message.data as AgentCompletedMessage['data'])
-      setAgents(prev => prev.map(agent =>
-        agent.name === data.agent_name
-          ? { ...agent, status: 'completed' }
-          : agent
-      ))
+
+      // Validate data structure
+      if (!data?.agent_name || !data?.output) {
+        console.error('Invalid agent_completed event: missing required fields', data)
+        return
+      }
+
+      setAgents(prev => {
+        const hasAgent = prev.some(a => a.name === data.agent_name)
+        if (!hasAgent) {
+          console.error(`Unknown agent in agent_completed event: ${data.agent_name}`)
+          return prev
+        }
+
+        return prev.map(agent =>
+          agent.name === data.agent_name
+            ? { ...agent, status: 'completed' }
+            : agent
+        )
+      })
+
       setAgentOutputs(prev => prev.map(output =>
         output.agentName === data.agent_name
           ? {
@@ -125,16 +162,33 @@ export default function TaskDetailPage() {
 
     const unsubscribeAgentFailed = subscribe('agent_failed', (message) => {
       const data = (message.data as AgentFailedMessage['data'])
-      setAgents(prev => prev.map(agent =>
-        agent.name === data.agent_name
-          ? { ...agent, status: 'failed' }
-          : agent
-      ))
+
+      // Validate data structure
+      if (!data?.agent_name || !data?.error) {
+        console.error('Invalid agent_failed event: missing required fields', data)
+        return
+      }
+
+      setAgents(prev => {
+        const hasAgent = prev.some(a => a.name === data.agent_name)
+        if (!hasAgent) {
+          console.error(`Unknown agent in agent_failed event: ${data.agent_name}`)
+          return prev
+        }
+
+        return prev.map(agent =>
+          agent.name === data.agent_name
+            ? { ...agent, status: 'failed' }
+            : agent
+        )
+      })
+
       setAgentOutputs(prev => prev.map(output =>
         output.agentName === data.agent_name
           ? { ...output, status: 'failed' }
           : output
       ))
+
       toast.error(`Agent ${data.agent_name} failed: ${data.error}`)
     })
 
@@ -145,7 +199,7 @@ export default function TaskDetailPage() {
       unsubscribeAgentCompleted()
       unsubscribeAgentFailed()
     }
-  }, [isConnected, subscribe, taskId, refetchTask, refetchExecutions])
+  }, [isConnected, subscribe, taskId, stableRefetchTask, stableRefetchExecutions])
 
   const handleTrigger = async () => {
     try {
