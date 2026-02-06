@@ -8,13 +8,17 @@ shared context management, and optional result synthesis.
 import asyncio
 import json
 import time
+import uuid
 from pathlib import Path
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
 from datetime import datetime, timezone
 
+from sqlalchemy.orm import Session
+
 from claude_interface import execute_claude_task
 from logger import get_logger
+from models import ActivityLog
 from .workspace import create_agent_workspace, init_shared_context
 from .context import update_shared_context, read_shared_context
 from .status import update_agent_status, read_agent_status, AgentStatus
@@ -242,7 +246,8 @@ async def execute_multi_agent_task(
     task: Any,
     execution_id: str,
     base_path: Optional[Path] = None,
-    broadcast_callback: Optional[callable] = None
+    broadcast_callback: Optional[callable] = None,
+    db_session: Optional[Session] = None
 ) -> Dict[str, Any]:
     """
     Execute multi-agent task with sequential agent coordination.
@@ -252,6 +257,7 @@ async def execute_multi_agent_task(
         execution_id: Unique execution identifier
         base_path: Base path for workspace (optional, for testing)
         broadcast_callback: Optional WebSocket broadcast function
+        db_session: Optional database session for activity logging
 
     Returns:
         dict: Execution result with status and agent details
@@ -315,6 +321,21 @@ async def execute_multi_agent_task(
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
+        # Log agent started
+        if db_session:
+            log_entry = ActivityLog(
+                id=str(uuid.uuid4()),
+                executionId=execution_id,
+                type="agent_started",
+                message=f"Agent '{agent_name}' started",
+                metadata_={
+                    "agent_name": agent_name,
+                    "role": role_config.get("type")
+                }
+            )
+            db_session.add(log_entry)
+            db_session.commit()
+
         # Execute agent
         try:
             result = await execute_single_agent(
@@ -345,6 +366,23 @@ async def execute_multi_agent_task(
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     })
 
+                # Log agent failed
+                if db_session:
+                    log_entry = ActivityLog(
+                        id=str(uuid.uuid4()),
+                        executionId=execution_id,
+                        type="agent_failed",
+                        message=f"Agent '{agent_name}' failed: {result.error or 'Unknown error'}",
+                        metadata_={
+                            "agent_name": agent_name,
+                            "error": result.error,
+                            "exit_code": result.exit_code,
+                            "duration_ms": result.duration_ms
+                        }
+                    )
+                    db_session.add(log_entry)
+                    db_session.commit()
+
                 return {
                     "status": "failed",
                     "failed_agent": agent_name,
@@ -371,6 +409,21 @@ async def execute_multi_agent_task(
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
 
+            # Log agent completed
+            if db_session:
+                log_entry = ActivityLog(
+                    id=str(uuid.uuid4()),
+                    executionId=execution_id,
+                    type="agent_completed",
+                    message=f"Agent '{agent_name}' completed successfully",
+                    metadata_={
+                        "agent_name": agent_name,
+                        "duration_ms": result.duration_ms
+                    }
+                )
+                db_session.add(log_entry)
+                db_session.commit()
+
             # Update shared context
             update_shared_context(workspace, agent_name, result.output)
 
@@ -393,6 +446,22 @@ async def execute_multi_agent_task(
                     "error": str(e),
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
+
+            # Log agent failed (exception path)
+            if db_session:
+                log_entry = ActivityLog(
+                    id=str(uuid.uuid4()),
+                    executionId=execution_id,
+                    type="agent_failed",
+                    message=f"Agent '{agent_name}' failed: {str(e)}",
+                    metadata_={
+                        "agent_name": agent_name,
+                        "error": str(e),
+                        "error_type": type(e).__name__
+                    }
+                )
+                db_session.add(log_entry)
+                db_session.commit()
 
             return {
                 "status": "failed",
@@ -420,6 +489,18 @@ async def execute_multi_agent_task(
                 "timestamp": datetime.now(timezone.utc).isoformat()
             })
 
+        # Log synthesis started
+        if db_session:
+            log_entry = ActivityLog(
+                id=str(uuid.uuid4()),
+                executionId=execution_id,
+                type="synthesis_started",
+                message="Result synthesis started",
+                metadata_={}
+            )
+            db_session.add(log_entry)
+            db_session.commit()
+
         synthesis_result = await synthesize_results(workspace)
 
         if synthesis_result["status"] == "completed":
@@ -435,6 +516,20 @@ async def execute_multi_agent_task(
                     "duration_ms": synthesis_result.get("duration_ms", 0),
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
+
+            # Log synthesis completed
+            if db_session:
+                log_entry = ActivityLog(
+                    id=str(uuid.uuid4()),
+                    executionId=execution_id,
+                    type="synthesis_completed",
+                    message="Result synthesis completed",
+                    metadata_={
+                        "duration_ms": synthesis_result.get("duration_ms", 0)
+                    }
+                )
+                db_session.add(log_entry)
+                db_session.commit()
         else:
             # Synthesis failed, but agents completed - mark as partial success
             result["synthesis_failed"] = True
@@ -449,5 +544,20 @@ async def execute_multi_agent_task(
                     "error": synthesis_result.get("error", "Synthesis failed"),
                     "timestamp": datetime.now(timezone.utc).isoformat()
                 })
+
+            # Log synthesis failed
+            if db_session:
+                log_entry = ActivityLog(
+                    id=str(uuid.uuid4()),
+                    executionId=execution_id,
+                    type="synthesis_completed",
+                    message=f"Result synthesis failed: {synthesis_result.get('error', 'Synthesis failed')}",
+                    metadata_={
+                        "status": "failed",
+                        "error": synthesis_result.get("error", "Synthesis failed")
+                    }
+                )
+                db_session.add(log_entry)
+                db_session.commit()
 
     return result
