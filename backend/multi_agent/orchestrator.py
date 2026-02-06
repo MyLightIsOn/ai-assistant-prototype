@@ -20,6 +20,7 @@ from .context import update_shared_context, read_shared_context
 from .status import update_agent_status, read_agent_status, AgentStatus
 from .roles import generate_agent_instructions, AgentRole
 from .detector import validate_agent_metadata
+from .synthesis import synthesize_results
 
 logger = get_logger()
 
@@ -369,8 +370,19 @@ async def execute_multi_agent_task(
         "workspace": str(workspace)
     }
 
-    # Add synthesis placeholder
+    # Perform synthesis if requested
     if synthesize:
-        result["synthesis_required"] = True
+        logger.info("Starting result synthesis")
+        synthesis_result = await synthesize_results(workspace)
+
+        if synthesis_result["status"] == "completed":
+            result["synthesis"] = synthesis_result.get("synthesis", {})
+            result["synthesis_duration_ms"] = synthesis_result.get("duration_ms", 0)
+            logger.info("Synthesis completed successfully")
+        else:
+            # Synthesis failed, but agents completed - mark as partial success
+            result["synthesis_failed"] = True
+            result["synthesis_error"] = synthesis_result.get("error", "Synthesis failed")
+            logger.warning(f"Synthesis failed: {result['synthesis_error']}")
 
     return result

@@ -23,6 +23,8 @@ __all__ = [
     "execute_multi_agent_task",
     "prepare_agent_execution",
     "AgentExecutionResult",
+    "synthesize_results",
+    "generate_synthesis_prompt",
 ]
 
 
@@ -45,5 +47,8 @@ def __getattr__(name):
         return locals()[name]
     elif name == "execute_multi_agent_task" or name == "prepare_agent_execution" or name == "AgentExecutionResult":
         from .orchestrator import execute_multi_agent_task, prepare_agent_execution, AgentExecutionResult
+        return locals()[name]
+    elif name == "synthesize_results" or name == "generate_synthesis_prompt":
+        from .synthesis import synthesize_results, generate_synthesis_prompt
         return locals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
