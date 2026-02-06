@@ -20,7 +20,7 @@ describe("PWA Service Worker", () => {
         scope: "/",
         update: vi.fn(),
         unregister: vi.fn(),
-      } as ServiceWorkerRegistration),
+      } as unknown as ServiceWorkerRegistration),
       ready: Promise.resolve({
         installing: null,
         waiting: null,
@@ -31,7 +31,7 @@ describe("PWA Service Worker", () => {
         scope: "/",
         update: vi.fn(),
         unregister: vi.fn(),
-      } as ServiceWorkerRegistration),
+      } as unknown as ServiceWorkerRegistration),
     };
 
     // Mock navigator with serviceWorker
@@ -61,7 +61,7 @@ describe("PWA Service Worker", () => {
 
   it("should register service worker in production", async () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
+    vi.stubEnv('NODE_ENV', 'production');
 
     // Simulate service worker registration
     if ("serviceWorker" in navigator) {
@@ -70,18 +70,18 @@ describe("PWA Service Worker", () => {
       expect(mockServiceWorkerContainer.register).toHaveBeenCalledWith("/sw.js");
     }
 
-    process.env.NODE_ENV = originalEnv;
+    vi.stubEnv('NODE_ENV', originalEnv);
   });
 
   it("should not register service worker in development", () => {
     const originalEnv = process.env.NODE_ENV;
-    process.env.NODE_ENV = "development";
+    vi.stubEnv('NODE_ENV', 'development');
 
     // In development, we should skip service worker registration
     const shouldRegister = process.env.NODE_ENV === "production";
     expect(shouldRegister).toBe(false);
 
-    process.env.NODE_ENV = originalEnv;
+    vi.stubEnv('NODE_ENV', originalEnv);
   });
 
   it("should handle service worker registration failure gracefully", async () => {

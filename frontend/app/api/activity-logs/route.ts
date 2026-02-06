@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
     const executionId = searchParams.get("executionId") || undefined
 
     // Build where clause
-    const where: any = {}
+    const where: { type?: string; executionId?: string } = {}
     if (type) {
       where.type = type
     }

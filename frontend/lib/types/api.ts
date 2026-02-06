@@ -21,7 +21,7 @@ export interface Task {
   notifyOn: string;
   metadata?: {
     multi_agent?: MultiAgentMetadata;
-    [key: string]: any;
+    [key: string]: unknown;
   };
   createdAt: string;
   updatedAt: string;
@@ -147,7 +147,7 @@ export interface AgentCompletedMessage extends WebSocketMessage {
   data: {
     agent_name: string;
     output: {
-      structured?: Record<string, any>;
+      structured?: Record<string, unknown>;
       narrative?: string;
     };
     timestamp: string;

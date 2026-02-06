@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
 
@@ -70,7 +71,7 @@ describe('/api/tasks', () => {
     })
 
     it('returns 401 when not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const response = await getTasks()
 
@@ -151,7 +152,7 @@ describe('/api/tasks', () => {
     })
 
     it('returns 401 when not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const request = new NextRequest('http://localhost:3000/api/tasks', {
         method: 'POST',
@@ -201,7 +202,7 @@ describe('/api/tasks/[id]', () => {
     })
 
     it('returns 401 when not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const response = await getTask(
         new NextRequest('http://localhost:3000/api/tasks/task-1'),
@@ -266,7 +267,7 @@ describe('/api/tasks/[id]', () => {
     })
 
     it('returns 401 when not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const response = await updateTask(
         new NextRequest('http://localhost:3000/api/tasks/task-1', {
@@ -314,7 +315,7 @@ describe('/api/tasks/[id]', () => {
     })
 
     it('returns 401 when not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const response = await deleteTask(
         new NextRequest('http://localhost:3000/api/tasks/task-1', {

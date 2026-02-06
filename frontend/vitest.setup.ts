@@ -1,6 +1,6 @@
 import "@testing-library/jest-dom";
 import { config } from "dotenv";
-import { beforeEach, vi } from "vitest";
+import { beforeEach } from "vitest";
 
 // Load environment variables from .env file for tests
 config();
@@ -39,11 +39,14 @@ global.ResizeObserver = class ResizeObserver {
   disconnect() {}
 };
 
+// Set up localStorage before any tests run
+global.localStorage = localStorageMock as Storage;
+Object.defineProperty(window, 'localStorage', {
+  value: localStorageMock,
+  writable: true,
+  configurable: true,
+});
+
 beforeEach(() => {
   localStorageMock.clear();
-  global.localStorage = localStorageMock as Storage;
-  Object.defineProperty(window, 'localStorage', {
-    value: localStorageMock,
-    writable: true,
-  });
 });

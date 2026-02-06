@@ -193,7 +193,7 @@ describe('AgentOutputViewer', () => {
       { agentName: 'Failed Agent', status: 'failed' },
     ]
 
-    const { container } = render(<AgentOutputViewer agents={agents} />)
+    render(<AgentOutputViewer agents={agents} />)
 
     // Check that badges are rendered (will verify color classes in implementation)
     const completedBadge = screen.getByText('Completed')
