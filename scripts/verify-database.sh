@@ -21,7 +21,20 @@ if [ "$DB_SIZE" -eq 0 ]; then
     echo "❌ Database file is empty (0 bytes)"
     exit 1
 fi
-echo "✅ Database file exists ($(numfmt --to=iec-i --suffix=B $DB_SIZE 2>/dev/null || echo "${DB_SIZE} bytes"))"
+
+# Format size in human-readable format (cross-platform)
+format_size() {
+    local size=$1
+    if [ "$size" -lt 1024 ]; then
+        echo "${size} bytes"
+    elif [ "$size" -lt 1048576 ]; then
+        echo "$(( size / 1024 )) KB"
+    else
+        echo "$(( size / 1048576 )) MB"
+    fi
+}
+
+echo "✅ Database file exists ($(format_size $DB_SIZE))"
 
 # Expected tables
 EXPECTED_TABLES=(

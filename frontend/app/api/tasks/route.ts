@@ -33,7 +33,9 @@ export async function GET() {
     // Parse metadata JSON strings (SQLite stores as string, not JSON type)
     const tasksWithParsedMetadata = tasks.map(task => ({
       ...task,
-      metadata: task.metadata ? JSON.parse(task.metadata as string) : null
+      metadata: task.metadata && typeof task.metadata === 'string'
+        ? JSON.parse(task.metadata)
+        : task.metadata  // If already object (e.g., after Prisma upgrade), use as-is
     }));
 
     return NextResponse.json({ tasks: tasksWithParsedMetadata });
