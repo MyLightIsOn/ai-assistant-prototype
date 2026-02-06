@@ -20,6 +20,9 @@ __all__ = [
     "is_multi_agent_task",
     "get_agent_config",
     "validate_agent_metadata",
+    "execute_multi_agent_task",
+    "prepare_agent_execution",
+    "AgentExecutionResult",
 ]
 
 
@@ -39,5 +42,8 @@ def __getattr__(name):
         return locals()[name]
     elif name == "is_multi_agent_task" or name == "get_agent_config" or name == "validate_agent_metadata":
         from .detector import is_multi_agent_task, get_agent_config, validate_agent_metadata
+        return locals()[name]
+    elif name == "execute_multi_agent_task" or name == "prepare_agent_execution" or name == "AgentExecutionResult":
+        from .orchestrator import execute_multi_agent_task, prepare_agent_execution, AgentExecutionResult
         return locals()[name]
     raise AttributeError(f"module {__name__!r} has no attribute {name!r}")
