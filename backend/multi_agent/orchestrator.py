@@ -324,8 +324,7 @@ async def execute_multi_agent_task(
         # Log agent started
         if db_session:
             log_entry = ActivityLog(
-                id=str(uuid.uuid4()),
-                executionId=execution_id,
+                                executionId=execution_id,
                 type="agent_started",
                 message=f"Agent '{agent_name}' started",
                 metadata_={
@@ -369,8 +368,7 @@ async def execute_multi_agent_task(
                 # Log agent failed
                 if db_session:
                     log_entry = ActivityLog(
-                        id=str(uuid.uuid4()),
-                        executionId=execution_id,
+                                                executionId=execution_id,
                         type="agent_failed",
                         message=f"Agent '{agent_name}' failed: {result.error or 'Unknown error'}",
                         metadata_={
@@ -412,8 +410,7 @@ async def execute_multi_agent_task(
             # Log agent completed
             if db_session:
                 log_entry = ActivityLog(
-                    id=str(uuid.uuid4()),
-                    executionId=execution_id,
+                                        executionId=execution_id,
                     type="agent_completed",
                     message=f"Agent '{agent_name}' completed successfully",
                     metadata_={
@@ -450,8 +447,7 @@ async def execute_multi_agent_task(
             # Log agent failed (exception path)
             if db_session:
                 log_entry = ActivityLog(
-                    id=str(uuid.uuid4()),
-                    executionId=execution_id,
+                                        executionId=execution_id,
                     type="agent_failed",
                     message=f"Agent '{agent_name}' failed: {str(e)}",
                     metadata_={
@@ -492,8 +488,7 @@ async def execute_multi_agent_task(
         # Log synthesis started
         if db_session:
             log_entry = ActivityLog(
-                id=str(uuid.uuid4()),
-                executionId=execution_id,
+                                executionId=execution_id,
                 type="synthesis_started",
                 message="Result synthesis started",
                 metadata_={}
@@ -520,8 +515,7 @@ async def execute_multi_agent_task(
             # Log synthesis completed
             if db_session:
                 log_entry = ActivityLog(
-                    id=str(uuid.uuid4()),
-                    executionId=execution_id,
+                                        executionId=execution_id,
                     type="synthesis_completed",
                     message="Result synthesis completed",
                     metadata_={
@@ -548,8 +542,7 @@ async def execute_multi_agent_task(
             # Log synthesis failed
             if db_session:
                 log_entry = ActivityLog(
-                    id=str(uuid.uuid4()),
-                    executionId=execution_id,
+                                        executionId=execution_id,
                     type="synthesis_completed",
                     message=f"Result synthesis failed: {synthesis_result.get('error', 'Synthesis failed')}",
                     metadata_={

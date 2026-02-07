@@ -264,10 +264,8 @@ class TaskScheduler:
 
             # Create execution record
             execution = TaskExecution(
-                id=str(uuid.uuid4()),
                 taskId=task_id,
-                status="running",
-                startedAt=int(datetime.now(timezone.utc).timestamp() * 1000)
+                status="running"
             )
             db.add(execution)
             db.commit()
@@ -275,7 +273,6 @@ class TaskScheduler:
 
             # Log task start
             log = ActivityLog(
-                id=str(uuid.uuid4()),
                 executionId=execution.id,
                 type="task_start",
                 message=f"Task '{task.name}' started",
@@ -309,7 +306,6 @@ class TaskScheduler:
 
                 # Log completion
                 log = ActivityLog(
-                    id=str(uuid.uuid4()),
                     executionId=execution.id,
                     type="task_complete" if exit_code == 0 else "task_error",
                     message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -338,7 +334,6 @@ class TaskScheduler:
 
                 # Log error
                 log = ActivityLog(
-                    id=str(uuid.uuid4()),
                     executionId=execution.id,
                     type="error",
                     message=f"Task '{task.name}' failed with error: {str(e)}",
@@ -389,7 +384,6 @@ class TaskScheduler:
                     db = self.SessionLocal()
                     try:
                         log = ActivityLog(
-                            id=str(uuid.uuid4()),
                             executionId=None,
                             type="task_retry",
                             message=f"Task {task_id} retry attempt {attempt + 1}/{max_attempts}",
@@ -504,7 +498,6 @@ def setup_digest_jobs(scheduler: BackgroundScheduler, db: Session):
     if not settings:
         # Create default settings
         settings = DigestSettings(
-            id=str(uuid.uuid4()),
             dailyEnabled=True,
             dailyTime="20:00",
             weeklyEnabled=True,

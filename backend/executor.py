@@ -103,7 +103,6 @@ async def _execute_multi_agent(
 
         # Log completion
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_complete" if exit_code == 0 else "task_error",
             message=f"Multi-agent task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -157,7 +156,6 @@ async def _execute_multi_agent(
 
         # Log error
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Multi-agent task '{task.name}' failed: {str(e)}",
@@ -222,10 +220,8 @@ async def execute_task(
 
     # Create execution record
     execution = TaskExecution(
-        id=str(uuid.uuid4()),
         taskId=task_id,
-        status="running",
-        startedAt=int(datetime.now(timezone.utc).timestamp() * 1000)
+        status="running"
     )
     db.add(execution)
     db.commit()
@@ -233,7 +229,6 @@ async def execute_task(
 
     # Log task start
     log_entry = ActivityLog(
-        id=str(uuid.uuid4()),
         executionId=execution.id,
         type="task_start",
         message=f"Task '{task.name}' started",
@@ -336,7 +331,6 @@ Please execute this task and provide the output.
 
         # Log completion
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_complete" if exit_code == 0 else "task_error",
             message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -398,7 +392,6 @@ Please execute this task and provide the output.
 
         # Log timeout
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' timed out",
@@ -457,7 +450,6 @@ Please execute this task and provide the output.
 
         # Log error
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' failed: {str(e)}",
