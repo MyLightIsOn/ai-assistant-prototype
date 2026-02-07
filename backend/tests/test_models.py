@@ -273,7 +273,7 @@ def test_task_execution_complete(db_session: Session, sample_task: Task):
         id="exec-123",
         taskId=sample_task.id,
         status="running",
-        startedAt=start_time
+        startedAt=int(start_time.timestamp() * 1000)
     )
     db_session.add(execution)
     db_session.commit()
@@ -281,7 +281,7 @@ def test_task_execution_complete(db_session: Session, sample_task: Task):
     # Complete the execution
     complete_time = datetime.utcnow()
     execution.status = "completed"
-    execution.completedAt = complete_time
+    execution.completedAt = int(complete_time.timestamp() * 1000)
     execution.output = "Task completed successfully"
     execution.duration = int((complete_time - start_time).total_seconds() * 1000)
     db_session.commit()

@@ -35,8 +35,8 @@ def sample_tasks(db: Session):
         email='test@example.com',
         name='Test User',
         passwordHash='$2b$12$dummy_hash',
-        createdAt=datetime.now(),
-        updatedAt=datetime.now()
+        createdAt=int(datetime.now().timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000)
     )
     db.add(user)
     db.commit()
@@ -55,10 +55,10 @@ def sample_tasks(db: Session):
         enabled=1,  # Use integer for SQLite Boolean
         priority='default',
         notifyOn='completion,error',
-        createdAt=datetime.now() - timedelta(days=30),
-        updatedAt=datetime.now(),
-        lastRun=datetime.now() - timedelta(hours=12),
-        nextRun=datetime.now() + timedelta(hours=12)
+        createdAt=int((datetime.now() - timedelta(days=30)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
+        lastRun=int((datetime.now() - timedelta(hours=12)).timestamp() * 1000),
+        nextRun=int((datetime.now() + timedelta(hours=12)).timestamp() * 1000)
     )
     db.add(task1)
     tasks.append(task1)
@@ -75,10 +75,10 @@ def sample_tasks(db: Session):
         enabled=1,  # Use integer for SQLite Boolean
         priority='high',
         notifyOn='completion',
-        createdAt=datetime.now() - timedelta(days=20),
-        updatedAt=datetime.now(),
-        lastRun=datetime.now() - timedelta(hours=8),
-        nextRun=datetime.now() + timedelta(hours=16)
+        createdAt=int((datetime.now() - timedelta(days=20)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
+        lastRun=int((datetime.now() - timedelta(hours=8)).timestamp() * 1000),
+        nextRun=int((datetime.now() + timedelta(hours=16)).timestamp() * 1000)
     )
     db.add(task2)
     tasks.append(task2)
@@ -95,8 +95,8 @@ def sample_tasks(db: Session):
         enabled=0,  # Use integer for SQLite Boolean
         priority='low',
         notifyOn='error',
-        createdAt=datetime.now() - timedelta(days=10),
-        updatedAt=datetime.now(),
+        createdAt=int((datetime.now() - timedelta(days=10)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
         lastRun=None,
         nextRun=None
     )

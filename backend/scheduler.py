@@ -236,7 +236,7 @@ class TaskScheduler:
                 # Update nextRun in database
                 job = self.scheduler.get_job(task.id)
                 if job and hasattr(job, 'next_run_time') and job.next_run_time:
-                    task.nextRun = job.next_run_time.replace(tzinfo=None)
+                    task.nextRun = int(job.next_run_time.replace(tzinfo=None).timestamp() * 1000)
                     db.commit()
 
             logger.info(f"Synchronized {len(enabled_tasks)} tasks to scheduler")
@@ -267,7 +267,7 @@ class TaskScheduler:
                 id=str(uuid.uuid4()),
                 taskId=task_id,
                 status="running",
-                startedAt=datetime.now(timezone.utc)
+                startedAt=int(datetime.now(timezone.utc).timestamp() * 1000)
             )
             db.add(execution)
             db.commit()
@@ -298,12 +298,12 @@ class TaskScheduler:
                 # Update execution record
                 end_time = datetime.now(timezone.utc)
                 execution.status = "completed" if exit_code == 0 else "failed"
-                execution.completedAt = end_time
+                execution.completedAt = int(end_time.timestamp() * 1000)
                 execution.output = output
                 execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
                 # Update task lastRun
-                task.lastRun = start_time
+                task.lastRun = int(start_time.timestamp() * 1000)
 
                 db.commit()
 
@@ -327,12 +327,12 @@ class TaskScheduler:
                 # Handle execution error
                 end_time = datetime.now(timezone.utc)
                 execution.status = "failed"
-                execution.completedAt = end_time
+                execution.completedAt = int(end_time.timestamp() * 1000)
                 execution.output = str(e)
                 execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
                 # Update task lastRun
-                task.lastRun = start_time
+                task.lastRun = int(start_time.timestamp() * 1000)
 
                 db.commit()
 

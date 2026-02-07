@@ -261,10 +261,10 @@ class TaskResponse(TaskBase):
     """Schema for Task responses."""
     id: str
     userId: str
-    createdAt: datetime
-    updatedAt: datetime
-    lastRun: Optional[datetime] = None
-    nextRun: Optional[datetime] = None
+    createdAt: int
+    updatedAt: int
+    lastRun: Optional[int] = None
+    nextRun: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -286,7 +286,7 @@ class ExecutionCreate(ExecutionBase):
 class ExecutionUpdate(BaseModel):
     """Schema for updating an existing TaskExecution."""
     status: Optional[str] = Field(None, pattern=r"^(running|completed|failed)$")
-    completedAt: Optional[datetime] = None
+    completedAt: Optional[int] = None
     output: Optional[str] = None
     duration: Optional[int] = None
 
@@ -297,8 +297,8 @@ class ExecutionResponse(ExecutionBase):
     """Schema for TaskExecution responses."""
     id: str
     taskId: str
-    startedAt: datetime
-    completedAt: Optional[datetime] = None
+    startedAt: int
+    completedAt: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -331,9 +331,9 @@ class NotificationCreate(BaseModel):
 class NotificationResponse(NotificationCreate):
     """Schema for Notification responses."""
     id: str
-    sentAt: datetime
+    sentAt: int
     delivered: bool
-    readAt: Optional[datetime] = None
+    readAt: Optional[int] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -358,8 +358,8 @@ class AiMemoryUpdate(BaseModel):
 class AiMemoryResponse(AiMemoryCreate):
     """Schema for AiMemory responses."""
     id: str
-    createdAt: datetime
-    updatedAt: datetime
+    createdAt: int
+    updatedAt: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -391,7 +391,7 @@ class DigestSettingsUpdate(BaseModel):
 class DigestSettingsResponse(DigestSettingsBase):
     """Schema for DigestSettings responses."""
     id: str
-    createdAt: datetime
-    updatedAt: datetime
+    createdAt: int
+    updatedAt: int
 
     model_config = ConfigDict(from_attributes=True)

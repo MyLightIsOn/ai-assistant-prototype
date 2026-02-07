@@ -92,3 +92,30 @@ def test_timestamp_defaults_generate_unix_milliseconds(db_session):
     # Verify it's a 13-digit number (Unix ms format)
     assert len(str(log.createdAt)) == 13, \
         f"createdAt should be 13 digits (Unix ms), got {len(str(log.createdAt))} digits"
+
+
+def test_datetime_assignment_converts_to_integer(db_session):
+    """Verify assigning datetime to INTEGER column works correctly."""
+    from datetime import datetime, timezone
+    from sqlalchemy import text
+
+    log = ActivityLog(
+        type="test",
+        message="Test"
+    )
+    db_session.add(log)
+    db_session.commit()
+
+    # Manually set timestamp using datetime object
+    test_time = datetime(2026, 2, 7, 12, 0, 0, tzinfo=timezone.utc)
+    log.createdAt = int(test_time.timestamp() * 1000)
+    db_session.commit()
+
+    # Verify it's stored as INTEGER
+    result = db_session.execute(
+        text("SELECT typeof(createdAt), createdAt FROM ActivityLog WHERE id = :log_id"),
+        {"log_id": log.id}
+    ).fetchone()
+
+    assert result[0] == 'integer', f"createdAt should be stored as 'integer', got '{result[0]}'"
+    assert result[1] == 1770465600000, f"createdAt should be 1770465600000 (Unix ms for 2026-02-07 12:00:00 UTC), got {result[1]}"
