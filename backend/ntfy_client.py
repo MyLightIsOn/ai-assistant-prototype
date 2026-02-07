@@ -183,11 +183,9 @@ def log_notification_to_db(
 
         # Create log entry
         log_entry = ActivityLog(
-            id=f"log_{datetime.now(timezone.utc).timestamp()}_{os.urandom(4).hex()}",
             type=type,
             message=message,
-            metadata_=metadata,
-            createdAt=datetime.now(timezone.utc)
+            metadata_=metadata
         )
 
         db.add(log_entry)

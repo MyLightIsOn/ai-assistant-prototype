@@ -236,7 +236,7 @@ class TaskScheduler:
                 # Update nextRun in database
                 job = self.scheduler.get_job(task.id)
                 if job and hasattr(job, 'next_run_time') and job.next_run_time:
-                    task.nextRun = job.next_run_time.replace(tzinfo=None)
+                    task.nextRun = int(job.next_run_time.replace(tzinfo=None).timestamp() * 1000)
                     db.commit()
 
             logger.info(f"Synchronized {len(enabled_tasks)} tasks to scheduler")
@@ -264,10 +264,8 @@ class TaskScheduler:
 
             # Create execution record
             execution = TaskExecution(
-                id=str(uuid.uuid4()),
                 taskId=task_id,
-                status="running",
-                startedAt=datetime.now(timezone.utc)
+                status="running"
             )
             db.add(execution)
             db.commit()
@@ -275,7 +273,6 @@ class TaskScheduler:
 
             # Log task start
             log = ActivityLog(
-                id=str(uuid.uuid4()),
                 executionId=execution.id,
                 type="task_start",
                 message=f"Task '{task.name}' started",
@@ -298,18 +295,17 @@ class TaskScheduler:
                 # Update execution record
                 end_time = datetime.now(timezone.utc)
                 execution.status = "completed" if exit_code == 0 else "failed"
-                execution.completedAt = end_time
+                execution.completedAt = int(end_time.timestamp() * 1000)
                 execution.output = output
                 execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
                 # Update task lastRun
-                task.lastRun = start_time
+                task.lastRun = int(start_time.timestamp() * 1000)
 
                 db.commit()
 
                 # Log completion
                 log = ActivityLog(
-                    id=str(uuid.uuid4()),
                     executionId=execution.id,
                     type="task_complete" if exit_code == 0 else "task_error",
                     message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -327,18 +323,17 @@ class TaskScheduler:
                 # Handle execution error
                 end_time = datetime.now(timezone.utc)
                 execution.status = "failed"
-                execution.completedAt = end_time
+                execution.completedAt = int(end_time.timestamp() * 1000)
                 execution.output = str(e)
                 execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
                 # Update task lastRun
-                task.lastRun = start_time
+                task.lastRun = int(start_time.timestamp() * 1000)
 
                 db.commit()
 
                 # Log error
                 log = ActivityLog(
-                    id=str(uuid.uuid4()),
                     executionId=execution.id,
                     type="error",
                     message=f"Task '{task.name}' failed with error: {str(e)}",
@@ -389,7 +384,6 @@ class TaskScheduler:
                     db = self.SessionLocal()
                     try:
                         log = ActivityLog(
-                            id=str(uuid.uuid4()),
                             executionId=None,
                             type="task_retry",
                             message=f"Task {task_id} retry attempt {attempt + 1}/{max_attempts}",
@@ -504,7 +498,6 @@ def setup_digest_jobs(scheduler: BackgroundScheduler, db: Session):
     if not settings:
         # Create default settings
         settings = DigestSettings(
-            id=str(uuid.uuid4()),
             dailyEnabled=True,
             dailyTime="20:00",
             weeklyEnabled=True,

@@ -35,8 +35,8 @@ def sample_tasks(db: Session):
         email='test@example.com',
         name='Test User',
         passwordHash='$2b$12$dummy_hash',
-        createdAt=datetime.now(),
-        updatedAt=datetime.now()
+        createdAt=int(datetime.now().timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000)
     )
     db.add(user)
     db.commit()
@@ -55,10 +55,10 @@ def sample_tasks(db: Session):
         enabled=1,  # Use integer for SQLite Boolean
         priority='default',
         notifyOn='completion,error',
-        createdAt=datetime.now() - timedelta(days=30),
-        updatedAt=datetime.now(),
-        lastRun=datetime.now() - timedelta(hours=12),
-        nextRun=datetime.now() + timedelta(hours=12)
+        createdAt=int((datetime.now() - timedelta(days=30)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
+        lastRun=int((datetime.now() - timedelta(hours=12)).timestamp() * 1000),
+        nextRun=int((datetime.now() + timedelta(hours=12)).timestamp() * 1000)
     )
     db.add(task1)
     tasks.append(task1)
@@ -75,10 +75,10 @@ def sample_tasks(db: Session):
         enabled=1,  # Use integer for SQLite Boolean
         priority='high',
         notifyOn='completion',
-        createdAt=datetime.now() - timedelta(days=20),
-        updatedAt=datetime.now(),
-        lastRun=datetime.now() - timedelta(hours=8),
-        nextRun=datetime.now() + timedelta(hours=16)
+        createdAt=int((datetime.now() - timedelta(days=20)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
+        lastRun=int((datetime.now() - timedelta(hours=8)).timestamp() * 1000),
+        nextRun=int((datetime.now() + timedelta(hours=16)).timestamp() * 1000)
     )
     db.add(task2)
     tasks.append(task2)
@@ -95,8 +95,8 @@ def sample_tasks(db: Session):
         enabled=0,  # Use integer for SQLite Boolean
         priority='low',
         notifyOn='error',
-        createdAt=datetime.now() - timedelta(days=10),
-        updatedAt=datetime.now(),
+        createdAt=int((datetime.now() - timedelta(days=10)).timestamp() * 1000),
+        updatedAt=int(datetime.now().timestamp() * 1000),
         lastRun=None,
         nextRun=None
     )
@@ -119,8 +119,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_1',
         taskId='task_1',
         status='completed',
-        startedAt=now - timedelta(hours=12),
-        completedAt=now - timedelta(hours=12, minutes=-5),
+        startedAt=int((now - timedelta(hours=12)).timestamp() * 1000),
+        completedAt=int((now - timedelta(hours=12, minutes=-5)).timestamp() * 1000),
         output='Backup completed',
         duration=5000  # 5 seconds
     )
@@ -132,8 +132,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_2',
         taskId='task_2',
         status='completed',
-        startedAt=now - timedelta(hours=8),
-        completedAt=now - timedelta(hours=8, minutes=-3),
+        startedAt=int((now - timedelta(hours=8)).timestamp() * 1000),
+        completedAt=int((now - timedelta(hours=8, minutes=-3)).timestamp() * 1000),
         output='Research completed',
         duration=3000  # 3 seconds
     )
@@ -145,8 +145,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_3',
         taskId='task_1',
         status='failed',
-        startedAt=now - timedelta(hours=6),
-        completedAt=now - timedelta(hours=6, minutes=-1),
+        startedAt=int((now - timedelta(hours=6)).timestamp() * 1000),
+        completedAt=int((now - timedelta(hours=6, minutes=-1)).timestamp() * 1000),
         output='Error: Connection timeout',
         duration=1000  # 1 second
     )
@@ -158,8 +158,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_4',
         taskId='task_2',
         status='completed',
-        startedAt=now - timedelta(hours=4),
-        completedAt=now - timedelta(hours=4, minutes=-2),
+        startedAt=int((now - timedelta(hours=4)).timestamp() * 1000),
+        completedAt=int((now - timedelta(hours=4, minutes=-2)).timestamp() * 1000),
         output='Research completed',
         duration=2000  # 2 seconds
     )
@@ -172,8 +172,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_5',
         taskId='task_1',
         status='completed',
-        startedAt=now - timedelta(days=3),
-        completedAt=now - timedelta(days=3, minutes=-5),
+        startedAt=int((now - timedelta(days=3)).timestamp() * 1000),
+        completedAt=int((now - timedelta(days=3, minutes=-5)).timestamp() * 1000),
         output='Backup completed',
         duration=5000
     )
@@ -185,8 +185,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_6',
         taskId='task_2',
         status='failed',
-        startedAt=now - timedelta(days=5),
-        completedAt=now - timedelta(days=5, minutes=-1),
+        startedAt=int((now - timedelta(days=5)).timestamp() * 1000),
+        completedAt=int((now - timedelta(days=5, minutes=-1)).timestamp() * 1000),
         output='Error: Network issue',
         duration=1000
     )
@@ -198,8 +198,8 @@ def sample_executions(db: Session, sample_tasks):
         id='exec_7',
         taskId='task_1',
         status='completed',
-        startedAt=now - timedelta(days=8),
-        completedAt=now - timedelta(days=8, minutes=-5),
+        startedAt=int((now - timedelta(days=8)).timestamp() * 1000),
+        completedAt=int((now - timedelta(days=8, minutes=-5)).timestamp() * 1000),
         output='Old backup',
         duration=5000
     )
@@ -310,8 +310,8 @@ class TestSuccessRateQueries:
                 id=f'exec_success_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-5),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -336,8 +336,8 @@ class TestSuccessRateQueries:
                 id=f'exec_fail_{i}',
                 taskId='task_1',
                 status='failed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-1),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-1)).timestamp() * 1000),
                 output='Error',
                 duration=1000
             )
@@ -362,8 +362,8 @@ class TestSuccessRateQueries:
                 id=f'exec_success_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(hours=i),
-                completedAt=now - timedelta(hours=i, minutes=-5),
+                startedAt=int((now - timedelta(hours=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(hours=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -374,8 +374,8 @@ class TestSuccessRateQueries:
                 id=f'exec_fail_{i}',
                 taskId='task_2',
                 status='failed',
-                startedAt=now - timedelta(hours=i),
-                completedAt=now - timedelta(hours=i, minutes=-1),
+                startedAt=int((now - timedelta(hours=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(hours=i, minutes=-1)).timestamp() * 1000),
                 output='Error',
                 duration=1000
             )
@@ -400,8 +400,8 @@ class TestSuccessRateQueries:
                 id=f'exec_recent_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i+1),
-                completedAt=now - timedelta(days=i+1, minutes=-5),
+                startedAt=int((now - timedelta(days=i+1)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i+1, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -413,8 +413,8 @@ class TestSuccessRateQueries:
                 id=f'exec_old_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-5),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-5)).timestamp() * 1000),
                 output='Old success',
                 duration=5000
             )
@@ -531,8 +531,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_success_today_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(hours=i),
-                completedAt=now - timedelta(hours=i, minutes=-5),
+                startedAt=int((now - timedelta(hours=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(hours=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -543,8 +543,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_fail_today_{i}',
                 taskId='task_1',
                 status='failed',
-                startedAt=now - timedelta(hours=i+3),
-                completedAt=now - timedelta(hours=i+3, minutes=-1),
+                startedAt=int((now - timedelta(hours=i+3)).timestamp() * 1000),
+                completedAt=int((now - timedelta(hours=i+3, minutes=-1)).timestamp() * 1000),
                 output='Error',
                 duration=1000
             )
@@ -574,8 +574,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_day0_success_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(hours=i),
-                completedAt=now - timedelta(hours=i, minutes=-5),
+                startedAt=int((now - timedelta(hours=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(hours=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -585,8 +585,8 @@ class TestExecutionTrendsQueries:
             id='exec_day0_fail',
             taskId='task_1',
             status='failed',
-            startedAt=now - timedelta(hours=2),
-            completedAt=now - timedelta(hours=2, minutes=-1),
+            startedAt=int((now - timedelta(hours=2)).timestamp() * 1000),
+            completedAt=int((now - timedelta(hours=2, minutes=-1)).timestamp() * 1000),
             output='Error',
             duration=1000
         )
@@ -597,8 +597,8 @@ class TestExecutionTrendsQueries:
             id='exec_day2_success',
             taskId='task_1',
             status='completed',
-            startedAt=now - timedelta(days=2, hours=12),
-            completedAt=now - timedelta(days=2, hours=12, minutes=-5),
+            startedAt=int((now - timedelta(days=2, hours=12)).timestamp() * 1000),
+            completedAt=int((now - timedelta(days=2, hours=12, minutes=-5)).timestamp() * 1000),
             output='Success',
             duration=5000
         )
@@ -610,8 +610,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_day4_fail_{i}',
                 taskId='task_1',
                 status='failed',
-                startedAt=now - timedelta(days=4, hours=i),
-                completedAt=now - timedelta(days=4, hours=i, minutes=-1),
+                startedAt=int((now - timedelta(days=4, hours=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=4, hours=i, minutes=-1)).timestamp() * 1000),
                 output='Error',
                 duration=1000
             )
@@ -653,7 +653,7 @@ class TestExecutionTrendsQueries:
             id='exec_today',
             taskId='task_1',
             status='completed',
-            startedAt=now,
+            startedAt=int(now.timestamp() * 1000),
             completedAt=now + timedelta(minutes=5),
             output='Success',
             duration=5000
@@ -686,8 +686,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_recent_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-5),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )
@@ -699,8 +699,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_old_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-5),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-5)).timestamp() * 1000),
                 output='Old success',
                 duration=5000
             )
@@ -739,8 +739,8 @@ class TestExecutionTrendsQueries:
                 id=f'exec_{i}',
                 taskId='task_1',
                 status='completed',
-                startedAt=now - timedelta(days=i),
-                completedAt=now - timedelta(days=i, minutes=-5),
+                startedAt=int((now - timedelta(days=i)).timestamp() * 1000),
+                completedAt=int((now - timedelta(days=i, minutes=-5)).timestamp() * 1000),
                 output='Success',
                 duration=5000
             )

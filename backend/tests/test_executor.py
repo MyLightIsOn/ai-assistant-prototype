@@ -34,8 +34,8 @@ def mock_execution():
     execution.status = 'completed'
     execution.duration = 1200
     execution.output = 'Task completed successfully'
-    execution.completedAt = datetime.now(timezone.utc)
-    execution.startedAt = datetime.now(timezone.utc)
+    execution.completedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
+    execution.startedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
     return execution
 
 
@@ -91,8 +91,8 @@ async def test_executor_sends_failure_email_when_configured(mock_db, mock_task):
     failed_execution.status = 'failed'
     failed_execution.duration = 1200
     failed_execution.output = 'Error: Task failed'
-    failed_execution.completedAt = datetime.now(timezone.utc)
-    failed_execution.startedAt = datetime.now(timezone.utc)
+    failed_execution.completedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
+    failed_execution.startedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
 
     with patch('executor.get_gmail_sender') as mock_get_sender, \
          patch('executor.execute_claude_task') as mock_claude, \
@@ -147,8 +147,8 @@ async def test_executor_skips_email_when_not_configured(mock_db):
     execution.status = 'completed'
     execution.duration = 1200
     execution.output = 'Task completed successfully'
-    execution.completedAt = datetime.now(timezone.utc)
-    execution.startedAt = datetime.now(timezone.utc)
+    execution.completedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
+    execution.startedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
 
     with patch('executor.get_gmail_sender') as mock_get_sender, \
          patch('executor.execute_claude_task') as mock_claude, \

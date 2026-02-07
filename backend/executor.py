@@ -92,18 +92,17 @@ async def _execute_multi_agent(
             output += f"Completed Agents: {', '.join(result.get('completed_agents', []))}"
 
         # Update execution record
-        execution.completedAt = end_time
+        execution.completedAt = int(end_time.timestamp() * 1000)
         execution.output = output[:10000]  # Limit output size
         execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
         # Update task lastRun
-        task.lastRun = start_time
+        task.lastRun = int(start_time.timestamp() * 1000)
 
         db.commit()
 
         # Log completion
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_complete" if exit_code == 0 else "task_error",
             message=f"Multi-agent task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -148,16 +147,15 @@ async def _execute_multi_agent(
         # Handle execution error
         end_time = datetime.now(timezone.utc)
         execution.status = "failed"
-        execution.completedAt = end_time
+        execution.completedAt = int(end_time.timestamp() * 1000)
         execution.output = f"Multi-agent error: {str(e)}"
         execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
-        task.lastRun = start_time
+        task.lastRun = int(start_time.timestamp() * 1000)
         db.commit()
 
         # Log error
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Multi-agent task '{task.name}' failed: {str(e)}",
@@ -222,10 +220,8 @@ async def execute_task(
 
     # Create execution record
     execution = TaskExecution(
-        id=str(uuid.uuid4()),
         taskId=task_id,
-        status="running",
-        startedAt=datetime.now(timezone.utc)
+        status="running"
     )
     db.add(execution)
     db.commit()
@@ -233,7 +229,6 @@ async def execute_task(
 
     # Log task start
     log_entry = ActivityLog(
-        id=str(uuid.uuid4()),
         executionId=execution.id,
         type="task_start",
         message=f"Task '{task.name}' started",
@@ -325,18 +320,17 @@ Please execute this task and provide the output.
         # Update execution record
         end_time = datetime.now(timezone.utc)
         execution.status = "completed" if exit_code == 0 else "failed"
-        execution.completedAt = end_time
+        execution.completedAt = int(end_time.timestamp() * 1000)
         execution.output = output[:10000]  # Limit output size in DB
         execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
         # Update task lastRun
-        task.lastRun = start_time
+        task.lastRun = int(start_time.timestamp() * 1000)
 
         db.commit()
 
         # Log completion
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_complete" if exit_code == 0 else "task_error",
             message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
@@ -387,18 +381,17 @@ Please execute this task and provide the output.
         # Handle timeout
         end_time = datetime.now(timezone.utc)
         execution.status = "failed"
-        execution.completedAt = end_time
+        execution.completedAt = int(end_time.timestamp() * 1000)
         execution.output = f"Task timed out after 1 hour\n" + "\n".join(output_lines[:100])
         execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
         # Update task lastRun
-        task.lastRun = start_time
+        task.lastRun = int(start_time.timestamp() * 1000)
 
         db.commit()
 
         # Log timeout
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' timed out",
@@ -446,18 +439,17 @@ Please execute this task and provide the output.
         # Handle execution error
         end_time = datetime.now(timezone.utc)
         execution.status = "failed"
-        execution.completedAt = end_time
+        execution.completedAt = int(end_time.timestamp() * 1000)
         execution.output = f"Error: {str(e)}\n" + "\n".join(output_lines[:100])
         execution.duration = int((end_time - start_time).total_seconds() * 1000)
 
         # Update task lastRun
-        task.lastRun = start_time
+        task.lastRun = int(start_time.timestamp() * 1000)
 
         db.commit()
 
         # Log error
         log_entry = ActivityLog(
-            id=str(uuid.uuid4()),
             executionId=execution.id,
             type="task_error",
             message=f"Task '{task.name}' failed: {str(e)}",
