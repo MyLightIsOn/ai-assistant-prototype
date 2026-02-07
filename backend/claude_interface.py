@@ -5,7 +5,7 @@ This module provides async functions to spawn and interact with the Claude Code 
 as a subprocess, streaming output in real-time and handling errors gracefully.
 
 Key features:
-- Spawns Claude CLI with --dangerously-skip-permissions flag for non-interactive mode
+- Spawns Claude CLI with --dangerously-skip-permissions and --print flags for non-interactive mode
 - Sets working directory to ai-workspace
 - Streams stdout/stderr line-by-line
 - Captures exit codes
@@ -61,10 +61,11 @@ async def execute_claude_task(
         logger.info(f"Starting Claude task: {task_description[:100]}...")
         logger.debug(f"Working directory: {workspace_path}")
 
-        # Spawn subprocess with claude --dangerously-skip-permissions command and task as argument
+        # Spawn subprocess with claude --dangerously-skip-permissions --print command and task as argument
         process = await asyncio.create_subprocess_exec(
             'claude',
             '--dangerously-skip-permissions',
+            '--print',  # Non-interactive mode - print response and exit
             task_description,  # Pass task as positional argument
             stdin=asyncio.subprocess.PIPE,
             stdout=asyncio.subprocess.PIPE,
@@ -75,58 +76,34 @@ async def execute_claude_task(
         logger.info(f"Claude subprocess spawned (PID: {process.pid})")
         logger.debug(f"Task passed as CLI argument: {task_description[:100]}...")
 
-        # Read output from both stdout and stderr
-        output_complete = False
-        timeout_task = None
+        # Close stdin immediately since we're not using it
+        if process.stdin:
+            process.stdin.close()
 
         try:
-            # Create timeout task if specified
+            # Use communicate() instead of readline() to avoid deadlocks
+            # This reads all output and waits for process to complete
             if timeout:
-                timeout_task = asyncio.create_task(asyncio.sleep(timeout))
+                stdout, stderr = await asyncio.wait_for(
+                    process.communicate(),
+                    timeout=timeout
+                )
+            else:
+                stdout, stderr = await process.communicate()
 
-            # Read from stdout
-            if process.stdout:
-                while True:
-                    # Check timeout
-                    if timeout_task and timeout_task.done():
-                        raise asyncio.TimeoutError()
+            # Process and yield stdout
+            if stdout:
+                for line in stdout.decode('utf-8', errors='replace').splitlines():
+                    if line.strip():
+                        logger.debug(f"STDOUT: {line}")
+                        yield line
 
-                    try:
-                        line = await asyncio.wait_for(process.stdout.readline(), timeout=0.1)
-                        if not line:
-                            break
-                        decoded_line = line.decode('utf-8', errors='replace').rstrip('\n')
-                        if decoded_line:
-                            logger.debug(f"STDOUT: {decoded_line}")
-                            yield decoded_line
-                    except asyncio.TimeoutError:
-                        # Check if process finished
-                        if process.returncode is not None:
-                            break
-                        continue
-
-            # Read from stderr
-            if process.stderr:
-                while True:
-                    # Check timeout
-                    if timeout_task and timeout_task.done():
-                        raise asyncio.TimeoutError()
-
-                    try:
-                        line = await asyncio.wait_for(process.stderr.readline(), timeout=0.1)
-                        if not line:
-                            break
-                        decoded_line = line.decode('utf-8', errors='replace').rstrip('\n')
-                        if decoded_line:
-                            logger.debug(f"STDERR: {decoded_line}")
-                            yield decoded_line
-                    except asyncio.TimeoutError:
-                        # Check if process finished
-                        if process.returncode is not None:
-                            break
-                        continue
-
-            output_complete = True
+            # Process and yield stderr
+            if stderr:
+                for line in stderr.decode('utf-8', errors='replace').splitlines():
+                    if line.strip():
+                        logger.debug(f"STDERR: {line}")
+                        yield line
 
         except asyncio.TimeoutError:
             logger.error(f"Claude task timed out after {timeout} seconds")
@@ -134,9 +111,6 @@ async def execute_claude_task(
                 process.kill()
                 await process.wait()
             raise
-
-        # Wait for process to complete
-        await process.wait()
 
         # Capture exit code
         exit_code = process.returncode
