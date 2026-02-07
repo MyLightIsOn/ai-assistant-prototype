@@ -545,10 +545,16 @@ async def sync_task_to_calendar(request: Request):
         # Get task from database
         task = get_task_from_db(task_id)
         if not task:
+            logger.error(f"Task {task_id} not found for calendar sync")
             return Response(
                 content=json.dumps({"error": "Task not found"}),
                 status_code=404
             )
+
+        # Only sync enabled tasks to calendar
+        if not task.enabled:
+            logger.info(f"Skipping calendar sync for disabled task {task_id}")
+            return {"event_id": None, "skipped": True, "reason": "Task disabled"}
 
         # Sync to Calendar
         calendar_sync = get_calendar_sync()
@@ -557,10 +563,15 @@ async def sync_task_to_calendar(request: Request):
         # Update task metadata with event ID
         update_task_metadata(task_id, {'calendarEventId': event_id})
 
+        logger.info(f"Successfully synced task {task_id} to calendar event {event_id}")
+
         return {"event_id": event_id}
 
     except Exception as e:
-        logger.error(f"Calendar sync error: {e}")
+        logger.error(
+            "Calendar sync error",
+            extra={"metadata": {"error": str(e), "task_id": task_id if 'task_id' in locals() else None}}
+        )
         return Response(
             content=json.dumps({"error": str(e)}),
             status_code=500
@@ -578,19 +589,34 @@ async def delete_task_calendar_event(task_id: str):
         # Get task from database
         task = get_task_from_db(task_id)
         if not task:
+            logger.warning(f"Task {task_id} not found for calendar event deletion")
             return Response(
                 content=json.dumps({"error": "Task not found"}),
                 status_code=404
             )
 
+        # Check if task has calendar event
+        event_id = None
+        if task.task_metadata and isinstance(task.task_metadata, dict):
+            event_id = task.task_metadata.get('calendarEventId')
+
+        if not event_id:
+            logger.info(f"No calendar event found for task {task_id}, nothing to delete")
+            return {"status": "no_event", "message": "Task has no associated calendar event"}
+
         # Delete Calendar event
         calendar_sync = get_calendar_sync()
         calendar_sync.delete_calendar_event(task)
 
-        return {"status": "deleted"}
+        logger.info(f"Successfully deleted calendar event {event_id} for task {task_id}")
+
+        return {"status": "deleted", "event_id": event_id}
 
     except Exception as e:
-        logger.error(f"Calendar delete error: {e}")
+        logger.error(
+            "Calendar delete error",
+            extra={"metadata": {"error": str(e), "task_id": task_id}}
+        )
         return Response(
             content=json.dumps({"error": str(e)}),
             status_code=500
