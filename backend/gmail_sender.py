@@ -171,7 +171,7 @@ class GmailSender:
             'duration': f"{execution.duration / 1000:.1f}s" if execution.duration else 'N/A',
             'output_summary': execution.output[:500] if execution.output else 'No output',
             'drive_link': None,  # TODO: Add Drive link if output uploaded
-            'next_run': task.nextRun.strftime('%Y-%m-%d %H:%M:%S') if task.nextRun else None
+            'next_run': datetime.fromtimestamp(task.nextRun / 1000).strftime('%Y-%m-%d %H:%M:%S') if task.nextRun else None
         }
 
         # Render template

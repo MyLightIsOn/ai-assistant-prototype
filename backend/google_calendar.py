@@ -167,7 +167,7 @@ class CalendarSync:
             Event dict for Calendar API
         """
         # Calculate event time (default 15 min duration)
-        start_time = task.nextRun or datetime.now()
+        start_time = datetime.fromtimestamp(task.nextRun / 1000) if task.nextRun else datetime.now()
         end_time = start_time + timedelta(minutes=15)
 
         # Build event description

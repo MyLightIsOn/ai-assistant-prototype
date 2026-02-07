@@ -71,7 +71,7 @@ def get_daily_digest_data(db: Session, date: datetime) -> Dict[str, Any]:
     upcoming_tasks = [
         {
             'name': task.name,
-            'time': task.nextRun.strftime('%Y-%m-%d %H:%M:%S') if task.nextRun else 'Not scheduled',
+            'time': datetime.fromtimestamp(task.nextRun / 1000).strftime('%Y-%m-%d %H:%M:%S') if task.nextRun else 'Not scheduled',
             'description': task.description or 'N/A',
             'priority': task.priority
         }
@@ -294,7 +294,7 @@ def get_execution_trends(db: Session, days: int = 7) -> List[Dict[str, Any]]:
     execution_dict = {}
     for row in query_result:
         # Convert date to string format
-        date_str = row.execution_date if isinstance(row.execution_date, str) else row.execution_date.strftime('%Y-%m-%d')
+        date_str = row.execution_date if isinstance(row.execution_date, str) else row.execution_date
         execution_dict[date_str] = {
             'successful': int(row.successful),
             'failed': int(row.failed),
