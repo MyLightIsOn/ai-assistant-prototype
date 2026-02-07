@@ -7,7 +7,7 @@ Main application with WebSocket support for real-time communication.
 import json
 import os
 from contextlib import asynccontextmanager
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -20,7 +20,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from database import SessionLocal, engine
-from models import Base, Task, DigestSettings, DigestSettingsUpdate, DigestSettingsResponse
+from models import Base, Task, TaskExecution, DigestSettings, DigestSettingsUpdate, DigestSettingsResponse
 from logger import get_logger
 from scheduler import TaskScheduler, setup_digest_jobs
 from google_calendar import get_calendar_sync
@@ -486,6 +486,75 @@ async def execute_task_by_id(task_id: str):
             extra={"metadata": {"error": str(e), "task_id": task_id}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to execute task: {str(e)}")
+
+
+@app.post("/api/tasks/{task_id}/validate")
+async def validate_task_schedule(
+    task_id: str,
+    db: Session = Depends(get_db)
+):
+    """
+    Validate that task scheduling is correct and reasonable.
+
+    Returns warnings if:
+    - Task scheduled > 1 year in future
+    - Task has never executed but should have by now
+    - Calendar event missing
+    """
+    task = db.query(Task).filter_by(id=task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+
+    warnings = []
+
+    # Check if scheduled too far in future
+    if task.nextRun:
+        one_year_from_now = datetime.now(timezone.utc) + timedelta(days=365)
+        if task.nextRun > one_year_from_now:
+            warnings.append({
+                "type": "far_future",
+                "message": f"Task scheduled {task.nextRun}, over 1 year away",
+                "severity": "high"
+            })
+
+    # Check if task should have run by now but hasn't
+    if task.nextRun and task.nextRun < datetime.now(timezone.utc) and not task.lastRun:
+        warnings.append({
+            "type": "missed_execution",
+            "message": f"Task was scheduled for {task.nextRun} but never executed",
+            "severity": "critical"
+        })
+
+    # Check if calendar event exists
+    if not task.task_metadata or not task.task_metadata.get('calendarEventId'):
+        warnings.append({
+            "type": "missing_calendar",
+            "message": "Task not synced to Google Calendar",
+            "severity": "low"
+        })
+
+    # Check execution history
+    exec_count = db.query(TaskExecution).filter_by(taskId=task_id).count()
+    if task.enabled and task.lastRun is None and exec_count == 0:
+        warnings.append({
+            "type": "never_executed",
+            "message": "Task is enabled but has never executed",
+            "severity": "medium"
+        })
+
+    return {
+        "task_id": task_id,
+        "valid": len(warnings) == 0,
+        "warnings": warnings,
+        "task": {
+            "name": task.name,
+            "enabled": task.enabled,
+            "schedule": task.schedule,
+            "nextRun": task.nextRun.isoformat() if task.nextRun else None,
+            "lastRun": task.lastRun.isoformat() if task.lastRun else None,
+            "execution_count": exec_count
+        }
+    }
 
 
 def get_task_from_db(task_id: str) -> Optional[Task]:
