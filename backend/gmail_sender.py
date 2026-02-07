@@ -158,6 +158,11 @@ class GmailSender:
         Returns:
             Gmail message ID
         """
+        # Get recipient email from task metadata or use default
+        recipient = RECIPIENT_EMAIL
+        if task.task_metadata and isinstance(task.task_metadata, dict):
+            recipient = task.task_metadata.get('recipientEmail', RECIPIENT_EMAIL)
+
         # Prepare task data for template
         task_data = {
             'name': task.name,
@@ -175,7 +180,7 @@ class GmailSender:
         # Send email
         subject = f"✅ Task Complete: {task.name}"
         return self.send_email(
-            to=RECIPIENT_EMAIL,
+            to=recipient,
             subject=subject,
             body_html=html,
             body_text=text
@@ -192,6 +197,11 @@ class GmailSender:
         Returns:
             Gmail message ID
         """
+        # Get recipient email from task metadata or use default
+        recipient = RECIPIENT_EMAIL
+        if task.task_metadata and isinstance(task.task_metadata, dict):
+            recipient = task.task_metadata.get('recipientEmail', RECIPIENT_EMAIL)
+
         # Prepare task data for template
         task_data = {
             'name': task.name,
@@ -207,7 +217,7 @@ class GmailSender:
         # Send email
         subject = f"❌ Task Failed: {task.name}"
         return self.send_email(
-            to=RECIPIENT_EMAIL,
+            to=recipient,
             subject=subject,
             body_html=html,
             body_text=text

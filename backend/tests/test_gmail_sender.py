@@ -83,12 +83,13 @@ def test_send_email_with_attachments(sender, mock_gmail_service):
 
 def test_send_task_completion_email(sender, mock_gmail_service):
     """Test send_task_completion_email uses correct template."""
-    task = Mock(spec=['id', 'name', 'description', 'notifyOn', 'nextRun'])
+    task = Mock(spec=['id', 'name', 'description', 'notifyOn', 'nextRun', 'task_metadata'])
     task.id = 'task_123'
     task.name = 'Test Task'
     task.description = 'Test description'
     task.notifyOn = 'completion,error'
     task.nextRun = None
+    task.task_metadata = None
 
     execution = Mock(spec=['id', 'status', 'duration', 'output', 'completedAt'])
     execution.id = 'exec_456'
@@ -112,12 +113,111 @@ def test_send_task_completion_email(sender, mock_gmail_service):
     assert 'raw' in call_args[1]['body']
 
 
-def test_send_task_failure_email(sender, mock_gmail_service):
-    """Test send_task_failure_email uses correct template."""
-    task = Mock(spec=['id', 'name', 'description'])
+def test_send_task_completion_email_with_custom_recipient(sender, mock_gmail_service):
+    """Test send_task_completion_email uses custom recipient from task metadata."""
+    task = Mock(spec=['id', 'name', 'description', 'notifyOn', 'nextRun', 'task_metadata'])
+    task.id = 'task_123'
+    task.name = 'Test Task'
+    task.description = 'Test description'
+    task.notifyOn = 'completion,error'
+    task.nextRun = None
+    task.task_metadata = {'recipientEmail': 'custom@example.com'}
+
+    execution = Mock(spec=['id', 'status', 'duration', 'output', 'completedAt'])
+    execution.id = 'exec_456'
+    execution.status = 'completed'
+    execution.duration = 1200
+    execution.output = 'Task completed successfully'
+    execution.completedAt = '2026-02-04T10:30:00'
+
+    mock_gmail_service.users().messages().send().execute.return_value = {
+        'id': 'msg_12345'
+    }
+
+    message_id = sender.send_task_completion_email(task, execution)
+
+    assert message_id == 'msg_12345'
+
+    # Verify email was sent to custom recipient
+    call_args = mock_gmail_service.users().messages().send.call_args
+    message_raw = call_args[1]['body']['raw']
+    import base64
+    decoded_message = base64.urlsafe_b64decode(message_raw).decode('utf-8')
+    assert 'To: custom@example.com' in decoded_message
+
+
+def test_send_task_completion_email_falls_back_to_default(sender, mock_gmail_service):
+    """Test send_task_completion_email falls back to default recipient when no custom recipient."""
+    task = Mock(spec=['id', 'name', 'description', 'notifyOn', 'nextRun', 'task_metadata'])
+    task.id = 'task_123'
+    task.name = 'Test Task'
+    task.description = 'Test description'
+    task.notifyOn = 'completion,error'
+    task.nextRun = None
+    task.task_metadata = None  # No custom recipient
+
+    execution = Mock(spec=['id', 'status', 'duration', 'output', 'completedAt'])
+    execution.id = 'exec_456'
+    execution.status = 'completed'
+    execution.duration = 1200
+    execution.output = 'Task completed successfully'
+    execution.completedAt = '2026-02-04T10:30:00'
+
+    mock_gmail_service.users().messages().send().execute.return_value = {
+        'id': 'msg_12345'
+    }
+
+    message_id = sender.send_task_completion_email(task, execution)
+
+    assert message_id == 'msg_12345'
+
+    # Verify email was sent to default recipient (from environment)
+    call_args = mock_gmail_service.users().messages().send.call_args
+    message_raw = call_args[1]['body']['raw']
+    import base64
+    decoded_message = base64.urlsafe_b64decode(message_raw).decode('utf-8')
+    # Should use RECIPIENT_EMAIL from gmail_sender.py (environment or default)
+    from gmail_sender import RECIPIENT_EMAIL
+    assert f'To: {RECIPIENT_EMAIL}' in decoded_message
+
+
+def test_send_task_failure_email_with_custom_recipient(sender, mock_gmail_service):
+    """Test send_task_failure_email uses custom recipient from task metadata."""
+    task = Mock(spec=['id', 'name', 'description', 'task_metadata'])
     task.id = 'task_123'
     task.name = 'Failed Task'
     task.description = 'Test description'
+    task.task_metadata = {'recipientEmail': 'alert@example.com'}
+
+    execution = Mock(spec=['id', 'status', 'output', 'completedAt'])
+    execution.id = 'exec_456'
+    execution.status = 'failed'
+    execution.output = 'Error occurred'
+    execution.completedAt = '2026-02-04T10:30:00'
+
+    mock_gmail_service.users().messages().send().execute.return_value = {
+        'id': 'msg_12345'
+    }
+
+    message_id = sender.send_task_failure_email(task, execution)
+
+    assert message_id == 'msg_12345'
+
+    # Verify email was sent to custom recipient
+    call_args = mock_gmail_service.users().messages().send.call_args
+    message_raw = call_args[1]['body']['raw']
+    import base64
+    decoded_message = base64.urlsafe_b64decode(message_raw).decode('utf-8')
+    assert 'To: alert@example.com' in decoded_message
+
+
+def test_send_task_failure_email(sender, mock_gmail_service):
+    """Test send_task_failure_email uses correct template."""
+    task = Mock(spec=['id', 'name', 'description', 'task_metadata'])
+    task.id = 'task_123'
+    task.name = 'Failed Task'
+    task.description = 'Test description'
+    task.task_metadata = None
 
     execution = Mock(spec=['id', 'status', 'output', 'completedAt'])
     execution.id = 'exec_456'

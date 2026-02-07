@@ -11,6 +11,11 @@ from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
+
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request, BackgroundTasks, Depends
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
