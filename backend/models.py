@@ -12,7 +12,7 @@ import random
 import string
 
 from sqlalchemy import (
-    Column, String, DateTime, Boolean, Integer, ForeignKey, Text, JSON
+    Column, String, DateTime, Boolean, Integer, BigInteger, ForeignKey, Text, JSON
 )
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field, ConfigDict
@@ -93,8 +93,8 @@ class User(Base):
     email = Column(String, unique=True, nullable=False, index=True)
     name = Column(String, nullable=True)
     passwordHash = Column(String, nullable=False)
-    createdAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
-    updatedAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
+    createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
+    updatedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
 
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
@@ -133,10 +133,10 @@ class Task(Base):
     priority = Column(String, nullable=False, default="default")
     notifyOn = Column(String, nullable=False, default="completion,error")
     task_metadata = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
-    createdAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
-    updatedAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
-    lastRun = Column(Integer, nullable=True)
-    nextRun = Column(Integer, nullable=True)
+    createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
+    updatedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
+    lastRun = Column(BigInteger, nullable=True)
+    nextRun = Column(BigInteger, nullable=True)
 
     # Relationships
     user = relationship("User", back_populates="tasks")
@@ -150,10 +150,10 @@ class TaskExecution(Base):
     id = Column(String, primary_key=True, default=generate_cuid)
     taskId = Column(String, ForeignKey("Task.id", ondelete="CASCADE"), nullable=False)
     status = Column(String, nullable=False)  # "running", "completed", "failed"
-    startedAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
-    completedAt = Column(Integer, nullable=True)
+    startedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
+    completedAt = Column(BigInteger, nullable=True)
     output = Column(Text, nullable=True)  # Use Text for potentially large output
-    duration = Column(Integer, nullable=True)  # Milliseconds
+    duration = Column(BigInteger, nullable=True)  # Milliseconds
 
     # Relationships
     task = relationship("Task", back_populates="executions")
@@ -173,7 +173,7 @@ class ActivityLog(Base):
     type = Column(String, nullable=False)  # "task_start", "task_complete", "notification_sent", "error"
     message = Column(String, nullable=False)
     metadata_ = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
-    createdAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
+    createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
 
     # Relationships
     execution = relationship("TaskExecution", back_populates="logs")
@@ -188,9 +188,9 @@ class Notification(Base):
     message = Column(String, nullable=False)
     priority = Column(String, nullable=False, default="default")
     tags = Column(String, nullable=True)  # Comma-separated
-    sentAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
+    sentAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
     delivered = Column(Boolean, nullable=False, default=True)
-    readAt = Column(Integer, nullable=True)
+    readAt = Column(BigInteger, nullable=True)
 
 
 class AiMemory(Base):
@@ -201,8 +201,8 @@ class AiMemory(Base):
     key = Column(String, unique=True, nullable=False, index=True)
     value = Column(Text, nullable=False)  # JSON string
     category = Column(String, nullable=True)  # "preference", "context", "fact"
-    createdAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
-    updatedAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
+    createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
+    updatedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
 
 
 class DigestSettings(Base):
@@ -216,8 +216,8 @@ class DigestSettings(Base):
     weeklyDay = Column(String, nullable=False, default="monday")  # lowercase day name
     weeklyTime = Column(String, nullable=False, default="09:00")  # "HH:MM" format (24-hour)
     recipientEmail = Column(String, nullable=False)
-    createdAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000))
-    updatedAt = Column(Integer, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
+    createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
+    updatedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
 
 
 # ============================================================================

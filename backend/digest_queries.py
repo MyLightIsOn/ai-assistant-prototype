@@ -31,16 +31,17 @@ def get_daily_digest_data(db: Session, date: datetime) -> Dict[str, Any]:
     """
     # Calculate time window (last 24 hours from the given date)
     yesterday = date - timedelta(days=1)
+    yesterday_ms = int(yesterday.timestamp() * 1000)
 
     # Count total task executions in last 24 hours
     total_tasks = db.query(TaskExecution).filter(
-        TaskExecution.startedAt >= yesterday
+        TaskExecution.startedAt >= yesterday_ms
     ).count()
 
     # Count successful executions
     successful = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= yesterday,
+            TaskExecution.startedAt >= yesterday_ms,
             TaskExecution.status == 'completed'
         )
     ).count()
@@ -48,7 +49,7 @@ def get_daily_digest_data(db: Session, date: datetime) -> Dict[str, Any]:
     # Count failed executions
     failed = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= yesterday,
+            TaskExecution.startedAt >= yesterday_ms,
             TaskExecution.status == 'failed'
         )
     ).count()
@@ -107,16 +108,17 @@ def get_success_rate(db: Session, days: int = 7) -> Dict[str, Any]:
     # Calculate time window (last N days from now)
     now = datetime.now()
     start_date = now - timedelta(days=days)
+    start_date_ms = int(start_date.timestamp() * 1000)
 
     # Count total task executions in the time window
     total_executions = db.query(TaskExecution).filter(
-        TaskExecution.startedAt >= start_date
+        TaskExecution.startedAt >= start_date_ms
     ).count()
 
     # Count successful executions
     successful = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= start_date,
+            TaskExecution.startedAt >= start_date_ms,
             TaskExecution.status == 'completed'
         )
     ).count()
@@ -124,7 +126,7 @@ def get_success_rate(db: Session, days: int = 7) -> Dict[str, Any]:
     # Count failed executions
     failed = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= start_date,
+            TaskExecution.startedAt >= start_date_ms,
             TaskExecution.status == 'failed'
         )
     ).count()
@@ -162,20 +164,22 @@ def get_weekly_summary_data(db: Session, week_start: datetime) -> Dict[str, Any]
     """
     # Calculate time window (7 days from week_start)
     week_end = week_start + timedelta(days=7)
+    week_start_ms = int(week_start.timestamp() * 1000)
+    week_end_ms = int(week_end.timestamp() * 1000)
 
     # Count total executions in last 7 days
     total_executions = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= week_start,
-            TaskExecution.startedAt < week_end
+            TaskExecution.startedAt >= week_start_ms,
+            TaskExecution.startedAt < week_end_ms
         )
     ).count()
 
     # Count successful executions
     success_count = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= week_start,
-            TaskExecution.startedAt < week_end,
+            TaskExecution.startedAt >= week_start_ms,
+            TaskExecution.startedAt < week_end_ms,
             TaskExecution.status == 'completed'
         )
     ).count()
@@ -183,8 +187,8 @@ def get_weekly_summary_data(db: Session, week_start: datetime) -> Dict[str, Any]
     # Count failed executions
     failure_count = db.query(TaskExecution).filter(
         and_(
-            TaskExecution.startedAt >= week_start,
-            TaskExecution.startedAt < week_end,
+            TaskExecution.startedAt >= week_start_ms,
+            TaskExecution.startedAt < week_end_ms,
             TaskExecution.status == 'failed'
         )
     ).count()
@@ -198,8 +202,8 @@ def get_weekly_summary_data(db: Session, week_start: datetime) -> Dict[str, Any]
         TaskExecution, Task.id == TaskExecution.taskId
     ).filter(
         and_(
-            TaskExecution.startedAt >= week_start,
-            TaskExecution.startedAt < week_end,
+            TaskExecution.startedAt >= week_start_ms,
+            TaskExecution.startedAt < week_end_ms,
             TaskExecution.status == 'failed'
         )
     ).group_by(
@@ -222,8 +226,8 @@ def get_weekly_summary_data(db: Session, week_start: datetime) -> Dict[str, Any]
         func.avg(TaskExecution.duration)
     ).filter(
         and_(
-            TaskExecution.startedAt >= week_start,
-            TaskExecution.startedAt < week_end,
+            TaskExecution.startedAt >= week_start_ms,
+            TaskExecution.startedAt < week_end_ms,
             TaskExecution.duration.isnot(None)
         )
     ).scalar()
@@ -263,11 +267,13 @@ def get_execution_trends(db: Session, days: int = 7) -> List[Dict[str, Any]]:
     # Calculate date range (last N days including today)
     end_date = datetime.now().replace(hour=23, minute=59, second=59, microsecond=999999)
     start_date = (end_date - timedelta(days=days-1)).replace(hour=0, minute=0, second=0, microsecond=0)
+    start_date_ms = int(start_date.timestamp() * 1000)
+    end_date_ms = int(end_date.timestamp() * 1000)
 
     # Query executions grouped by date
-    # Use SQLAlchemy func.date() to group by calendar date
+    # Convert startedAt (Unix ms) to date string for grouping
     query_result = db.query(
-        func.date(TaskExecution.startedAt).label('execution_date'),
+        func.date(func.datetime(TaskExecution.startedAt / 1000, 'unixepoch')).label('execution_date'),
         func.sum(
             case(
                 (TaskExecution.status == 'completed', 1),
@@ -283,11 +289,11 @@ def get_execution_trends(db: Session, days: int = 7) -> List[Dict[str, Any]]:
         func.count(TaskExecution.id).label('total')
     ).filter(
         and_(
-            TaskExecution.startedAt >= start_date,
-            TaskExecution.startedAt <= end_date
+            TaskExecution.startedAt >= start_date_ms,
+            TaskExecution.startedAt <= end_date_ms
         )
     ).group_by(
-        func.date(TaskExecution.startedAt)
+        func.date(func.datetime(TaskExecution.startedAt / 1000, 'unixepoch'))
     ).all()
 
     # Create a dictionary of date -> counts for easy lookup
