@@ -1103,7 +1103,7 @@ async def update_digest_settings(
 
 @app.post("/api/settings/digest/test")
 async def send_test_digest(
-    digest_type: str = Query(..., regex="^(daily|weekly)$"),
+    digest_type: str = Query(..., pattern="^(daily|weekly)$"),
     db: Session = Depends(get_db)
 ):
     """
