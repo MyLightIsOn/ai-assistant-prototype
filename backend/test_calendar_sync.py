@@ -15,7 +15,7 @@ def test_calendar_sync():
     task.command = 'test'
     task.args = '{}'
     task.priority = 'high'
-    task.nextRun = datetime.now()
+    task.nextRun = int(datetime.now().timestamp() * 1000)
     task.schedule = '0 9 * * *'
     task.task_metadata = '{}'
 

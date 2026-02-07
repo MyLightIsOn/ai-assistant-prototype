@@ -1077,7 +1077,7 @@ async def update_digest_settings(
         for field, value in update_data.items():
             setattr(settings, field, value)
 
-        settings.updatedAt = datetime.now(timezone.utc)
+        settings.updatedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
         db.commit()
         db.refresh(settings)
 

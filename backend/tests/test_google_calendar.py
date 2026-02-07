@@ -29,7 +29,7 @@ def sample_task():
     task.command = 'backup'
     task.args = '{}'
     task.priority = 'default'
-    task.nextRun = datetime(2026, 2, 5, 3, 0, 0)
+    task.nextRun = int(datetime(2026, 2, 5, 3, 0, 0).timestamp() * 1000)
     task.schedule = '0 3 * * *'
     task.task_metadata = '{}'
     return task
