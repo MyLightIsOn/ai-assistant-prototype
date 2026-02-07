@@ -110,3 +110,5 @@ worktrees/
 # Documentation (contains private architecture and implementation details)
 # Repository is PUBLIC - docs must remain private until verified and production-ready
 docs/
+DIAGNOSTIC_REPORT.txt
+ROOT_CAUSE_ANALYSIS.md

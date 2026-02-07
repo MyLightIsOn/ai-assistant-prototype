@@ -10,7 +10,7 @@ import asyncio
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional
 
 from apscheduler.schedulers.background import BackgroundScheduler
@@ -50,6 +50,7 @@ class TaskScheduler:
             engine: SQLAlchemy engine for database connection
         """
         self.engine = engine
+        self.database_url = str(engine.url)  # Store URL string for pickling
         self.SessionLocal = sessionmaker(bind=engine)
 
         # Configure job stores
@@ -81,6 +82,35 @@ class TaskScheduler:
         jobstores['default'].jobs_t.create(engine, checkfirst=True)
 
         logger.info("TaskScheduler initialized with BackgroundScheduler")
+
+    def _is_one_time_task(self, task) -> bool:
+        """
+        Detect if task should be one-time execution vs recurring.
+
+        One-time tasks have:
+        - Specific day AND month (not wildcards)
+        - nextRun set to a specific datetime
+
+        Args:
+            task: Task model instance
+
+        Returns:
+            bool: True if one-time task, False if recurring
+        """
+        # If nextRun is set and schedule has specific day/month, it's one-time
+        if not task.nextRun:
+            return False
+
+        parts = task.schedule.split()
+        if len(parts) != 5:
+            return False
+
+        # Cron format: minute hour day month day_of_week
+        day = parts[2]
+        month = parts[3]
+
+        # If both day and month are specific (not wildcards), it's one-time
+        return day != '*' and month != '*'
 
     def start(self):
         """Start the scheduler."""
@@ -127,11 +157,61 @@ class TaskScheduler:
 
             # Add or update jobs for enabled tasks
             for task in enabled_tasks:
-                # Parse cron schedule
-                trigger = CronTrigger.from_crontab(task.schedule, timezone=UTC)
+                # Validate task nextRun is reasonable (not > 1 year away)
+                if task.nextRun:
+                    one_year_from_now = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
+                    if task.nextRun > one_year_from_now:
+                        logger.warning(
+                            f"Task {task.id} scheduled far in future: {task.nextRun}. "
+                            f"Skipping - may be misconfigured."
+                        )
+                        continue
 
                 # Check if job already exists
                 existing_job = self.scheduler.get_job(task.id)
+
+                # Determine trigger type based on task pattern
+                if self._is_one_time_task(task):
+                    # Use DateTrigger for one-time execution
+                    from apscheduler.triggers.date import DateTrigger
+                    from pytz import UTC
+
+                    # Calculate exact datetime from cron expression
+                    # For one-time tasks, parse the cron to get the specific date/time
+                    # Current year is the reference point
+                    now = datetime.now(UTC)
+                    current_year = now.year
+
+                    # Parse cron parts (minute hour day month day_of_week)
+                    parts = task.schedule.split()
+                    minute, hour, day, month = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+
+                    # Build datetime for current year
+                    from pytz import UTC
+                    try:
+                        run_time = datetime(current_year, month, day, hour, minute, tzinfo=UTC)
+
+                        # If the time has passed today/this year, it's a past one-time task
+                        if run_time < now:
+                            logger.warning(
+                                f"One-time task {task.id} scheduled for past date {run_time} (now: {now}). "
+                                f"Skipping scheduling - task should be disabled or updated."
+                            )
+                            # Remove from scheduler if it exists
+                            if existing_job:
+                                self.scheduler.remove_job(task.id)
+                                logger.info(f"Removed past one-time task {task.id} from scheduler")
+                            continue
+
+                        trigger = DateTrigger(run_date=run_time, timezone=UTC)
+                        logger.info(f"Using DateTrigger for one-time task {task.id} at {run_time} (now: {now})")
+                    except ValueError as e:
+                        logger.error(f"Invalid date in cron expression for task {task.id}: {e}")
+                        continue
+                else:
+                    # Use CronTrigger for recurring tasks
+                    trigger = CronTrigger.from_crontab(task.schedule, timezone=UTC)
+                    logger.info(f"Using CronTrigger for recurring task {task.id}: {task.schedule}")
 
                 if existing_job:
                     # Update existing job
@@ -142,12 +222,13 @@ class TaskScheduler:
                     logger.info(f"Updated job {task.id}: {task.name}")
                 else:
                     # Add new job using imported function
+                    # Pass database URL string instead of engine (engine can't be pickled)
                     job = self.scheduler.add_job(
                         func=execute_task_wrapper,
                         trigger=trigger,
                         id=task.id,
                         name=task.name,
-                        args=[self.engine, task.id],
+                        args=[self.database_url, task.id],
                         replace_existing=True
                     )
                     logger.info(f"Added job {task.id}: {task.name}")
