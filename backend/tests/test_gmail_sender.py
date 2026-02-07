@@ -288,7 +288,7 @@ def test_send_daily_digest_with_database(sender, mock_gmail_service):
             'id': 'msg_digest_123'
         }
 
-        message_id = sender.send_daily_digest(mock_db, datetime.now())
+        message_id = sender.send_daily_digest(mock_db, 'test@example.com', datetime.now())
 
         # Verify query was called with correct parameters
         mock_query.assert_called_once()
@@ -320,7 +320,7 @@ def test_send_weekly_summary_with_database(sender, mock_gmail_service):
             'id': 'msg_summary_123'
         }
 
-        message_id = sender.send_weekly_summary(mock_db, datetime.now())
+        message_id = sender.send_weekly_summary(mock_db, 'test@example.com', datetime.now())
 
         # Verify query was called with correct parameters
         mock_query.assert_called_once()
