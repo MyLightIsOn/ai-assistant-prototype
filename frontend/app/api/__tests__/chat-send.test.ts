@@ -184,7 +184,7 @@ describe('/api/chat/send', () => {
       await new Promise(resolve => setTimeout(resolve, 100))
 
       expect(global.fetch).toHaveBeenCalledWith(
-        'http://localhost:8000/api/chat/send',
+        'http://localhost:8000/api/chat/execute',
         expect.objectContaining({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
