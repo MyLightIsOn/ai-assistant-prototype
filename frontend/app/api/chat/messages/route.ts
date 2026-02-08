@@ -2,6 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import { auth } from '@/lib/auth';
 import { prisma } from '@/lib/prisma';
 
+const DEFAULT_MESSAGE_LIMIT = 50;
+const MAX_MESSAGE_LIMIT = 200;
+
 export async function GET(request: NextRequest) {
   try {
     // Check authentication
@@ -10,19 +13,17 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse query parameters
+    // Parse query parameters with validation
     const { searchParams } = new URL(request.url);
-    const limitParam = searchParams.get('limit');
-    const offsetParam = searchParams.get('offset');
+    const limitParam = parseInt(searchParams.get('limit') || String(DEFAULT_MESSAGE_LIMIT), 10);
+    const offsetParam = parseInt(searchParams.get('offset') || '0', 10);
 
-    // Validate and apply defaults
-    let limit = limitParam ? parseInt(limitParam, 10) : 50;
-    const offset = offsetParam ? parseInt(offsetParam, 10) : 0;
-
-    // Enforce max limit
-    if (limit > 200) {
-      limit = 200;
-    }
+    // Validate and sanitize
+    const limit = Math.min(
+      Math.max(1, isNaN(limitParam) ? DEFAULT_MESSAGE_LIMIT : limitParam),
+      MAX_MESSAGE_LIMIT
+    );
+    const offset = Math.max(0, isNaN(offsetParam) ? 0 : offsetParam);
 
     // Fetch messages and total count in parallel
     const [messages, total] = await Promise.all([
@@ -45,9 +46,15 @@ export async function GET(request: NextRequest) {
         content: msg.content,
         messageType: msg.messageType,
         metadata: msg.message_metadata
-          ? typeof msg.message_metadata === 'string'
-            ? JSON.parse(msg.message_metadata)
-            : msg.message_metadata
+          ? (() => {
+              try {
+                return typeof msg.message_metadata === 'string'
+                  ? JSON.parse(msg.message_metadata)
+                  : msg.message_metadata;
+              } catch {
+                return null; // Invalid JSON, return null
+              }
+            })()
           : null,
         createdAt:
           typeof msg.createdAt === 'number'
