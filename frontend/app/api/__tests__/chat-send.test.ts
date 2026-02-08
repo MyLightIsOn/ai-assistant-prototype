@@ -35,17 +35,17 @@ const { prisma } = await import('@/lib/prisma')
 const { auth } = await import('@/lib/auth')
 
 beforeEach(() => {
-  vi.clearAllMocks()
+  vi.clearAllMocks();
   // Default: authenticated user
   vi.mocked(auth).mockResolvedValue({
     user: { id: 'user-1', email: 'test@example.com' },
-  } as any)
-})
+  } as any);
+});
 
 describe('/api/chat/send', () => {
   describe('POST', () => {
     it('returns 401 if not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null)
+      vi.mocked(auth).mockResolvedValue(null as any)
 
       const request = new NextRequest('http://localhost:3000/api/chat/send', {
         method: 'POST',
@@ -98,7 +98,7 @@ describe('/api/chat/send', () => {
         role: 'user',
         content: 'Hello AI',
         messageType: 'text',
-        message_metadata: null,
+        metadata: null,
         createdAt: new Date('2026-02-08T10:00:00Z'),
       }
 
@@ -130,7 +130,7 @@ describe('/api/chat/send', () => {
         role: 'user',
         content: 'File attached',
         messageType: 'text',
-        message_metadata: null,
+        metadata: null,
         createdAt: new Date(),
       }
 
@@ -168,7 +168,7 @@ describe('/api/chat/send', () => {
         role: 'user',
         content: 'Execute task',
         messageType: 'text',
-        message_metadata: null,
+        metadata: null,
         createdAt: new Date(),
       }
 
@@ -204,7 +204,7 @@ describe('/api/chat/send', () => {
         role: 'user',
         content: 'Hello',
         messageType: 'text',
-        message_metadata: null,
+        metadata: null,
         createdAt: new Date(),
       }
 
@@ -240,7 +240,7 @@ describe('/api/chat/send', () => {
         role: 'user',
         content: 'Hello',
         messageType: 'text',
-        message_metadata: null,
+        metadata: null,
         createdAt: new Date(),
       }
 

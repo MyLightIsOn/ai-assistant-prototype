@@ -12,6 +12,9 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Utility scripts:
+    "create_user.js",
+    "update_password.js",
   ]),
 ]);
 

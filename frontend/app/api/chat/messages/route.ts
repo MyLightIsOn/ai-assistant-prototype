@@ -30,8 +30,8 @@ export async function GET(request: NextRequest) {
       prisma.chatMessage.findMany({
         where: { userId: session.user.id },
         orderBy: { createdAt: 'desc' },
-        offset,
-        limit,
+        skip: offset,
+        take: limit,
         include: { attachments: true },
       }),
       prisma.chatMessage.count({ where: { userId: session.user.id } }),
@@ -45,12 +45,12 @@ export async function GET(request: NextRequest) {
         role: msg.role,
         content: msg.content,
         messageType: msg.messageType,
-        metadata: msg.message_metadata
+        metadata: msg.metadata
           ? (() => {
               try {
-                return typeof msg.message_metadata === 'string'
-                  ? JSON.parse(msg.message_metadata)
-                  : msg.message_metadata;
+                return typeof msg.metadata === 'string'
+                  ? JSON.parse(msg.metadata)
+                  : msg.metadata;
               } catch {
                 return null; // Invalid JSON, return null
               }

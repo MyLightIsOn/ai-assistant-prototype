@@ -33,7 +33,7 @@ describe('/api/chat/messages', () => {
     });
 
     it('returns 401 if not authenticated', async () => {
-      vi.mocked(auth).mockResolvedValue(null);
+      vi.mocked(auth).mockResolvedValue(null as any);
 
       const request = new NextRequest('http://localhost:3000/api/chat/messages');
       const response = await getMessages(request);
@@ -48,25 +48,27 @@ describe('/api/chat/messages', () => {
       const mockMessages = [
         {
           id: 'msg-2',
+          userId: 'user-1',
           role: 'assistant' as const,
           content: 'Hi there',
           messageType: 'text' as const,
-          message_metadata: JSON.stringify({ model: 'claude-3' }),
+          metadata: JSON.stringify({ model: 'claude-3' }),
           createdAt: new Date('2024-01-01T10:01:00Z'),
           attachments: [],
         },
         {
           id: 'msg-1',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'Hello',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:00:00Z'),
           attachments: [],
         },
       ];
 
-      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages);
+      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages as any);
       vi.mocked(prisma.chatMessage.count).mockResolvedValue(2);
 
       const request = new NextRequest('http://localhost:3000/api/chat/messages');
@@ -86,16 +88,17 @@ describe('/api/chat/messages', () => {
       const mockMessages = [
         {
           id: 'msg-3',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'Message 3',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:02:00Z'),
           attachments: [],
         },
       ];
 
-      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages);
+      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages as any);
       vi.mocked(prisma.chatMessage.count).mockResolvedValue(10);
 
       const request = new NextRequest(
@@ -109,8 +112,8 @@ describe('/api/chat/messages', () => {
       expect(prisma.chatMessage.findMany).toHaveBeenCalledWith({
         where: { userId: 'user-1' },
         orderBy: { createdAt: 'desc' },
-        offset: 2,
-        limit: 1,
+        skip: 2,
+        take: 1,
         include: { attachments: true },
       });
       expect(data.messages).toHaveLength(1);
@@ -122,34 +125,37 @@ describe('/api/chat/messages', () => {
       const mockMessages = [
         {
           id: 'msg-3',
+          userId: 'user-1',
           role: 'assistant' as const,
           content: 'Third',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:02:00Z'),
           attachments: [],
         },
         {
           id: 'msg-2',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'Second',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:01:00Z'),
           attachments: [],
         },
         {
           id: 'msg-1',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'First',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:00:00Z'),
           attachments: [],
         },
       ];
 
-      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages);
+      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages as any);
       vi.mocked(prisma.chatMessage.count).mockResolvedValue(3);
 
       const request = new NextRequest('http://localhost:3000/api/chat/messages');
@@ -171,25 +177,27 @@ describe('/api/chat/messages', () => {
       const mockMessages = [
         {
           id: 'msg-2',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'Question',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:01:00Z'),
           attachments: [],
         },
         {
           id: 'msg-1',
+          userId: 'user-1',
           role: 'assistant' as const,
           content: 'Response',
           messageType: 'text' as const,
-          message_metadata: JSON.stringify({ model: 'claude-3', tokens: 150 }),
+          metadata: JSON.stringify({ model: 'claude-3', tokens: 150 }),
           createdAt: new Date('2024-01-01T10:00:00Z'),
           attachments: [],
         },
       ];
 
-      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages);
+      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages as any);
       vi.mocked(prisma.chatMessage.count).mockResolvedValue(2);
 
       const request = new NextRequest('http://localhost:3000/api/chat/messages');
@@ -206,10 +214,11 @@ describe('/api/chat/messages', () => {
       const mockMessages = [
         {
           id: 'msg-1',
+          userId: 'user-1',
           role: 'user' as const,
           content: 'Check this file',
           messageType: 'text' as const,
-          message_metadata: null,
+          metadata: null,
           createdAt: new Date('2024-01-01T10:00:00Z'),
           attachments: [
             {
@@ -234,7 +243,7 @@ describe('/api/chat/messages', () => {
         },
       ];
 
-      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages);
+      vi.mocked(prisma.chatMessage.findMany).mockResolvedValue(mockMessages as any);
       vi.mocked(prisma.chatMessage.count).mockResolvedValue(1);
 
       const request = new NextRequest('http://localhost:3000/api/chat/messages');
