@@ -12,6 +12,7 @@
 export type WebSocketMessageType =
   | 'connected'
   | 'pong'
+  | 'ping'
   | 'terminal_output'
   | 'task_status'
   | 'notification'
@@ -27,6 +28,10 @@ export type WebSocketMessageType =
   | 'agent_completed'
   | 'agent_failed'
   | 'agent_output'
+  | 'chat_stream_start'
+  | 'chat_stream'
+  | 'chat_stream_complete'
+  | 'chat_stream_error'
   | 'error';
 
 export interface WebSocketMessage<T = unknown> {

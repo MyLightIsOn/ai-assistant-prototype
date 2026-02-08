@@ -90,12 +90,71 @@ async def execute_chat_message(
             env={**os.environ, "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///ai-assistant.db")}
         )
 
-        # Read output with timeout
+        # Stream output in chunks with timeout
+        accumulated_output = []
+        chunk_size = 1024  # 1KB chunks
+        start_time = datetime.now(timezone.utc)
+        timeout_seconds = 300  # 5 minute timeout
+
         try:
-            stdout, stderr = await asyncio.wait_for(
-                process.communicate(),
-                timeout=300  # 5 minute timeout
-            )
+            # Notify streaming start
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "chat_stream_start",
+                    "data": {
+                        "message_id": assistant_msg.id,
+                        "user_message_id": user_message_id
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+
+            # Read stdout in chunks
+            while True:
+                # Check timeout
+                elapsed = (datetime.now(timezone.utc) - start_time).total_seconds()
+                if elapsed > timeout_seconds:
+                    raise asyncio.TimeoutError("Execution timeout")
+
+                try:
+                    # Read chunk with 500ms timeout
+                    chunk = await asyncio.wait_for(
+                        process.stdout.read(chunk_size),
+                        timeout=0.5
+                    )
+
+                    if not chunk:
+                        # EOF reached
+                        break
+
+                    # Decode and accumulate
+                    chunk_text = chunk.decode('utf-8')
+                    accumulated_output.append(chunk_text)
+
+                    # Broadcast chunk
+                    if broadcast_callback:
+                        await broadcast_callback({
+                            "type": "chat_stream",
+                            "data": {
+                                "message_id": assistant_msg.id,
+                                "chunk": chunk_text
+                            },
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        })
+
+                except asyncio.TimeoutError:
+                    # No data available, check if process is still running
+                    if process.returncode is not None:
+                        # Process finished
+                        break
+                    # Otherwise continue waiting for more data
+
+            # Wait for process to complete
+            await asyncio.wait_for(process.wait(), timeout=5)
+
+            # Read any remaining stderr
+            stderr_data = await process.stderr.read()
+            stderr_text = stderr_data.decode('utf-8') if stderr_data else ""
+
         except asyncio.TimeoutError:
             # Try graceful shutdown first
             process.terminate()  # SIGTERM
@@ -109,22 +168,43 @@ async def execute_chat_message(
             # Log timeout for debugging
             logger.error(f"Claude Code execution timed out for message {assistant_msg.id}")
 
+            # Notify error
+            if broadcast_callback:
+                await broadcast_callback({
+                    "type": "chat_stream_error",
+                    "data": {
+                        "message_id": assistant_msg.id,
+                        "error": "Execution timed out after 5 minutes"
+                    },
+                    "timestamp": datetime.now(timezone.utc).isoformat()
+                })
+
             raise Exception("Claude Code execution timed out after 5 minutes")
 
         # Parse response
-        response_text = stdout.decode('utf-8').strip()
+        response_text = ''.join(accumulated_output).strip()
 
         if not response_text:
             response_text = "I encountered an error processing your message."
-            if stderr:
-                error_text = stderr.decode('utf-8')
-                logger.error(f"Chat execution error: {error_text}")
+            if stderr_text:
+                logger.error(f"Chat execution error: {stderr_text}")
                 # Include error details for debugging
-                response_text += f"\n\nError details: {error_text[:500]}"
+                response_text += f"\n\nError details: {stderr_text[:500]}"
 
         # Update assistant message
         assistant_msg.content = response_text
         db.commit()
+
+        # Notify streaming complete
+        if broadcast_callback:
+            await broadcast_callback({
+                "type": "chat_stream_complete",
+                "data": {
+                    "message_id": assistant_msg.id,
+                    "final_content": response_text
+                },
+                "timestamp": datetime.now(timezone.utc).isoformat()
+            })
 
         logger.info(f"Chat message executed: {assistant_msg.id}")
 

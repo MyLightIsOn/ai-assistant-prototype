@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { MessageList } from './MessageList';
 import { ChatInput } from './ChatInput';
+import { WebSocketClient, type ConnectionState } from '@/lib/websocket';
 
 export interface ChatMessage {
   id: string;
@@ -12,62 +13,96 @@ export interface ChatMessage {
   metadata?: any;
   createdAt: number;
   attachments?: any[];
+  isStreaming?: boolean;
 }
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
+  const [connectionState, setConnectionState] = useState<ConnectionState>('disconnected');
+  const wsClient = useRef<WebSocketClient | null>(null);
 
-  // Fetch messages on mount
+  // Initialize WebSocket connection
   useEffect(() => {
+    // Fetch initial messages
     fetchMessages();
-  }, []);
 
-  // Poll for assistant response
-  useEffect(() => {
-    if (!isWaitingForResponse) return;
-
-    let intervalId: NodeJS.Timeout;
-    let timeoutId: NodeJS.Timeout;
-
-    const poll = async () => {
-      try {
-        const response = await fetch('/api/chat/messages');
-        const data = await response.json();
-
-        // Find new assistant messages
-        setMessages(prev => {
-          const newMessages = data.messages.filter(
-            (msg: ChatMessage) =>
-              msg.role === 'assistant' &&
-              !prev.find(m => m.id === msg.id)
-          );
-
-          if (newMessages.length > 0) {
-            setIsWaitingForResponse(false);
-            clearInterval(intervalId);
-            clearTimeout(timeoutId);
-            return [...prev, ...newMessages];
-          }
-
-          return prev;
-        });
-      } catch (error) {
-        console.error('Polling error:', error);
+    // Create WebSocket client with connection state tracking
+    const client = new WebSocketClient({
+      url: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8000/ws',
+      autoReconnect: true,
+      maxReconnectAttempts: 5,
+      initialReconnectDelay: 1000,
+      maxReconnectDelay: 30000,
+      onStateChange: (state: ConnectionState) => {
+        setConnectionState(state);
       }
-    };
+    });
+    wsClient.current = client;
 
-    intervalId = setInterval(poll, 1000);
-    timeoutId = setTimeout(() => {
-      clearInterval(intervalId);
+    // Subscribe to chat streaming events
+    const unsubscribeStart = client.subscribe('chat_stream_start', (message) => {
+      const { message_id } = message.data as { message_id: string };
+
+      // Create placeholder assistant message
+      setMessages(prev => [...prev, {
+        id: message_id,
+        role: 'assistant',
+        content: '',
+        messageType: 'text',
+        createdAt: Date.now(),
+        isStreaming: true
+      }]);
+      setIsWaitingForResponse(true);
+    });
+
+    const unsubscribeStream = client.subscribe('chat_stream', (message) => {
+      const { message_id, chunk } = message.data as { message_id: string; chunk: string };
+
+      // Append chunk to assistant message
+      setMessages(prev => prev.map(msg =>
+        msg.id === message_id
+          ? { ...msg, content: msg.content + chunk }
+          : msg
+      ));
+    });
+
+    const unsubscribeComplete = client.subscribe('chat_stream_complete', (message) => {
+      const { message_id, final_content } = message.data as { message_id: string; final_content: string };
+
+      // Update final content and remove streaming flag
+      setMessages(prev => prev.map(msg =>
+        msg.id === message_id
+          ? { ...msg, content: final_content, isStreaming: false }
+          : msg
+      ));
       setIsWaitingForResponse(false);
-    }, 30000);
+    });
 
+    const unsubscribeError = client.subscribe('chat_stream_error', (message) => {
+      const { message_id, error } = message.data as { message_id: string; error: string };
+
+      // Update message with error
+      setMessages(prev => prev.map(msg =>
+        msg.id === message_id
+          ? { ...msg, content: `Error: ${error}`, messageType: 'error', isStreaming: false }
+          : msg
+      ));
+      setIsWaitingForResponse(false);
+    });
+
+    // Connect to WebSocket
+    client.connect();
+
+    // Cleanup on unmount
     return () => {
-      clearInterval(intervalId);
-      clearTimeout(timeoutId);
+      unsubscribeStart();
+      unsubscribeStream();
+      unsubscribeComplete();
+      unsubscribeError();
+      client.disconnect();
     };
-  }, [isWaitingForResponse]);
+  }, []);
 
   async function fetchMessages() {
     try {
@@ -92,7 +127,6 @@ export function ChatContainer() {
       createdAt: Date.now()
     };
     setMessages(prev => [...prev, optimisticMessage]);
-    setIsWaitingForResponse(true);
 
     try {
       // Send message
@@ -111,22 +145,43 @@ export function ChatContainer() {
             ? { ...msg, id: messageId }
             : msg
         ));
+
+        // Streaming will start via WebSocket chat_stream_start event
       } else {
         // Remove failed optimistic message
         setMessages(prev => prev.filter(msg => msg.id !== optimisticId));
-        setIsWaitingForResponse(false);
         console.error('Failed to send message:', response.statusText);
       }
     } catch (error) {
       console.error('Failed to send message:', error);
       // Remove failed optimistic message
       setMessages(prev => prev.filter(msg => msg.id !== optimisticId));
-      setIsWaitingForResponse(false);
     }
   }
 
   return (
     <div className="flex h-full flex-col">
+      {/* Connection status badge */}
+      <div className="border-b bg-white px-4 py-2">
+        <div className="flex items-center gap-2 text-sm">
+          <div className={`h-2 w-2 rounded-full ${
+            connectionState === 'connected' ? 'bg-green-500' :
+            connectionState === 'connecting' ? 'bg-yellow-500 animate-pulse' :
+            connectionState === 'error' ? 'bg-red-500' :
+            'bg-gray-400'
+          }`} />
+          <span className="text-gray-600">
+            {connectionState === 'connected' ? 'Connected' :
+             connectionState === 'connecting' ? 'Connecting...' :
+             connectionState === 'error' ? 'Connection error' :
+             'Disconnected'}
+          </span>
+          {isWaitingForResponse && (
+            <span className="ml-auto text-gray-500 italic">AI is streaming...</span>
+          )}
+        </div>
+      </div>
+
       <MessageList messages={messages} isLoading={isWaitingForResponse} />
       <ChatInput onSend={handleSendMessage} disabled={isWaitingForResponse} />
     </div>

@@ -4,6 +4,7 @@ FastAPI backend for AI Assistant.
 Main application with WebSocket support for real-time communication.
 """
 
+import asyncio
 import json
 import os
 from contextlib import asynccontextmanager
@@ -82,7 +83,7 @@ app.add_middleware(
 
 
 class ConnectionManager:
-    """Manages WebSocket connections."""
+    """Manages WebSocket connections with heartbeat and cleanup."""
 
     def __init__(self):
         self.active_connections: List[WebSocket] = []
@@ -99,19 +100,34 @@ class ConnectionManager:
 
     async def send_personal_message(self, message: Dict[str, Any], websocket: WebSocket):
         """Send message to specific WebSocket connection."""
-        await websocket.send_json(message)
+        try:
+            await websocket.send_json(message)
+            return True
+        except Exception as e:
+            logger.warning(
+                "Failed to send message to client",
+                extra={"metadata": {"error": str(e), "message_type": message.get("type")}}
+            )
+            return False
 
     async def broadcast(self, message: Dict[str, Any]):
-        """Broadcast message to all connected clients."""
+        """Broadcast message to all connected clients, removing dead connections."""
+        dead_connections = []
+
         for connection in self.active_connections:
             try:
                 await connection.send_json(message)
             except Exception as e:
-                # Connection might be closed, will be removed on next interaction
+                # Mark connection for removal
                 logger.warning(
-                    "Error broadcasting to client",
+                    "Error broadcasting to client, marking for removal",
                     extra={"metadata": {"error": str(e), "message_type": message.get("type")}}
                 )
+                dead_connections.append(connection)
+
+        # Remove dead connections
+        for connection in dead_connections:
+            self.disconnect(connection)
 
 
 # Create connection manager instance
@@ -949,7 +965,7 @@ async def delete_task_from_event(event: dict):
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """
-    WebSocket endpoint for real-time communication.
+    WebSocket endpoint for real-time communication with heartbeat.
 
     Messages format:
     {
@@ -960,6 +976,7 @@ async def websocket_endpoint(websocket: WebSocket):
 
     Message types:
     - connected: Sent when client connects
+    - ping: Server heartbeat (requires pong response)
     - pong: Response to ping
     - terminal_output: Terminal output stream
     - task_status: Task status update
@@ -967,6 +984,9 @@ async def websocket_endpoint(websocket: WebSocket):
     - activity_log: Activity log entry
     """
     await manager.connect(websocket)
+    last_pong = datetime.now(timezone.utc)
+    heartbeat_interval = 30  # Send ping every 30 seconds
+    heartbeat_timeout = 60  # Disconnect if no pong in 60 seconds
 
     try:
         # Send welcome message
@@ -982,31 +1002,55 @@ async def websocket_endpoint(websocket: WebSocket):
             websocket
         )
 
-        # Handle incoming messages
+        # Handle incoming messages with heartbeat
         while True:
-            # Receive message from client
-            data = await websocket.receive_json()
+            try:
+                # Receive message with timeout for heartbeat
+                data = await asyncio.wait_for(
+                    websocket.receive_json(),
+                    timeout=heartbeat_interval
+                )
 
-            # Handle ping/pong heartbeat
-            if data.get("type") == "ping":
-                await manager.send_personal_message(
+                # Handle ping/pong heartbeat
+                if data.get("type") == "ping":
+                    last_pong = datetime.now(timezone.utc)
+                    await manager.send_personal_message(
+                        {
+                            "type": "pong",
+                            "data": {},
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        },
+                        websocket
+                    )
+                elif data.get("type") == "pong":
+                    # Client responded to server ping
+                    last_pong = datetime.now(timezone.utc)
+                else:
+                    # Echo other messages for now (will be expanded later)
+                    await manager.send_personal_message(
+                        {
+                            "type": "echo",
+                            "data": data,
+                            "timestamp": datetime.now(timezone.utc).isoformat()
+                        },
+                        websocket
+                    )
+
+            except asyncio.TimeoutError:
+                # No message received, send server ping
+                success = await manager.send_personal_message(
                     {
-                        "type": "pong",
+                        "type": "ping",
                         "data": {},
                         "timestamp": datetime.now(timezone.utc).isoformat()
                     },
                     websocket
                 )
-            else:
-                # Echo other messages for now (will be expanded later)
-                await manager.send_personal_message(
-                    {
-                        "type": "echo",
-                        "data": data,
-                        "timestamp": datetime.now(timezone.utc).isoformat()
-                    },
-                    websocket
-                )
+
+                # Check if connection is dead (no pong in timeout period)
+                if not success or (datetime.now(timezone.utc) - last_pong).total_seconds() > heartbeat_timeout:
+                    logger.info("WebSocket heartbeat timeout, disconnecting")
+                    break
 
     except WebSocketDisconnect:
         manager.disconnect(websocket)
@@ -1019,6 +1063,9 @@ async def websocket_endpoint(websocket: WebSocket):
         )
         manager.disconnect(websocket)
         raise
+    finally:
+        # Ensure cleanup on all exit paths
+        manager.disconnect(websocket)
 
 
 if __name__ == "__main__":
@@ -1201,17 +1248,23 @@ async def send_chat_message(
                 attachment.messageId = user_msg.id
         db.commit()
 
-        # Trigger async execution
+        # Create broadcast callback for WebSocket streaming
+        async def broadcast_chat_update(message: dict):
+            """Broadcast chat streaming updates to all connected clients."""
+            await manager.broadcast(message)
+
+        # Trigger async execution with WebSocket streaming
         background_tasks.add_task(
             execute_chat_message,
             user_id=user["id"],
             user_message_id=user_msg.id,
-            user_message_content=request.content
+            user_message_content=request.content,
+            broadcast_callback=broadcast_chat_update
         )
 
         return {
             "messageId": user_msg.id,
-            "wsUrl": f"/ws?user_id={user['id']}"
+            "wsUrl": "/ws"
         }
 
     except Exception as e:
