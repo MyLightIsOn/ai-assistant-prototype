@@ -9,6 +9,7 @@ job store for persistence across restarts.
 import asyncio
 import json
 import logging
+import os
 import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
@@ -19,6 +20,7 @@ from apscheduler.triggers.cron import CronTrigger
 from apscheduler.executors.pool import ThreadPoolExecutor
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import sessionmaker, Session
+import pytz
 
 from models import Task, TaskExecution, ActivityLog, DigestSettings
 from database import get_db
@@ -28,6 +30,14 @@ from executor import execute_task_wrapper
 
 # Configure logging
 logger = get_logger()
+
+# Get user timezone from environment or default to PST
+USER_TIMEZONE = os.getenv('USER_TIMEZONE', 'America/Los_Angeles')
+try:
+    SCHEDULER_TIMEZONE = pytz.timezone(USER_TIMEZONE)
+except pytz.exceptions.UnknownTimeZoneError:
+    logger.warning(f"Unknown timezone '{USER_TIMEZONE}', falling back to America/Los_Angeles")
+    SCHEDULER_TIMEZONE = pytz.timezone('America/Los_Angeles')
 
 
 class TaskScheduler:
@@ -69,13 +79,12 @@ class TaskScheduler:
             'max_instances': 1  # Only one instance of each job can run at a time
         }
 
-        # Initialize scheduler
-        from pytz import UTC
+        # Initialize scheduler with user's timezone
         self.scheduler = BackgroundScheduler(
             jobstores=jobstores,
             executors=executors,
             job_defaults=job_defaults,
-            timezone=UTC
+            timezone=SCHEDULER_TIMEZONE
         )
 
         # Create APScheduler tables if they don't exist
@@ -138,8 +147,6 @@ class TaskScheduler:
         - Removes jobs for deleted or disabled tasks
         - Updates nextRun field in database
         """
-        from pytz import UTC
-
         db = self.SessionLocal()
         try:
             # Get all enabled tasks from database
@@ -160,7 +167,8 @@ class TaskScheduler:
                 # Validate task nextRun is reasonable (not > 1 year away)
                 if task.nextRun:
                     one_year_from_now = datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(days=365)
-                    if task.nextRun > one_year_from_now:
+                    one_year_ms = int(one_year_from_now.timestamp() * 1000)
+                    if task.nextRun > one_year_ms:
                         logger.warning(
                             f"Task {task.id} scheduled far in future: {task.nextRun}. "
                             f"Skipping - may be misconfigured."
@@ -174,12 +182,11 @@ class TaskScheduler:
                 if self._is_one_time_task(task):
                     # Use DateTrigger for one-time execution
                     from apscheduler.triggers.date import DateTrigger
-                    from pytz import UTC
 
                     # Calculate exact datetime from cron expression
                     # For one-time tasks, parse the cron to get the specific date/time
                     # Current year is the reference point
-                    now = datetime.now(UTC)
+                    now = datetime.now(SCHEDULER_TIMEZONE)
                     current_year = now.year
 
                     # Parse cron parts (minute hour day month day_of_week)
@@ -187,9 +194,8 @@ class TaskScheduler:
                     minute, hour, day, month = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
 
                     # Build datetime for current year
-                    from pytz import UTC
                     try:
-                        run_time = datetime(current_year, month, day, hour, minute, tzinfo=UTC)
+                        run_time = datetime(current_year, month, day, hour, minute, tzinfo=SCHEDULER_TIMEZONE)
 
                         # If the time has passed today/this year, it's a past one-time task
                         if run_time < now:
@@ -203,14 +209,14 @@ class TaskScheduler:
                                 logger.info(f"Removed past one-time task {task.id} from scheduler")
                             continue
 
-                        trigger = DateTrigger(run_date=run_time, timezone=UTC)
+                        trigger = DateTrigger(run_date=run_time, timezone=SCHEDULER_TIMEZONE)
                         logger.info(f"Using DateTrigger for one-time task {task.id} at {run_time} (now: {now})")
                     except ValueError as e:
                         logger.error(f"Invalid date in cron expression for task {task.id}: {e}")
                         continue
                 else:
                     # Use CronTrigger for recurring tasks
-                    trigger = CronTrigger.from_crontab(task.schedule, timezone=UTC)
+                    trigger = CronTrigger.from_crontab(task.schedule, timezone=SCHEDULER_TIMEZONE)
                     logger.info(f"Using CronTrigger for recurring task {task.id}: {task.schedule}")
 
                 if existing_job:
@@ -419,19 +425,48 @@ async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
 
     Args:
         command: The command to execute
-        args: JSON string of command arguments
+        args: Command arguments (task description for Claude)
 
     Returns:
         Tuple of (output, exit_code)
     """
-    # This is a placeholder for actual Claude command execution
-    # In production, this would spawn a Claude Code subprocess
+    import os
+    from claude_interface import execute_claude_task
+
     logger.info(f"Executing command: {command} with args: {args}")
 
-    # Simulate async execution
-    await asyncio.sleep(0.01)
+    # Get workspace path from environment or use default
+    workspace_path = os.getenv('AI_WORKSPACE', 'ai-workspace')
 
-    return (f"Executed {command}", 0)
+    # Collect output from Claude subprocess
+    output_lines = []
+    exit_code = 0
+
+    try:
+        async for line in execute_claude_task(args, workspace_path, timeout=300):
+            output_lines.append(line)
+            logger.debug(f"Claude output: {line}")
+
+        # Join all output lines
+        output = "\n".join(output_lines)
+
+        # Extract exit code from last line if present
+        if output_lines and "exit code:" in output_lines[-1].lower():
+            try:
+                # Parse "Task completed successfully (exit code: 0)"
+                last_line = output_lines[-1]
+                exit_code = int(last_line.split("exit code:")[-1].strip().rstrip(")"))
+            except:
+                exit_code = 0  # Default to success if parsing fails
+
+    except asyncio.TimeoutError:
+        output = "\n".join(output_lines) + "\n\nTask timed out after 300 seconds"
+        exit_code = 124  # Standard timeout exit code
+    except Exception as e:
+        output = "\n".join(output_lines) + f"\n\nError: {str(e)}"
+        exit_code = 1
+
+    return (output, exit_code)
 
 
 async def send_notification(title: str, message: str, priority: str = "default"):
@@ -448,7 +483,7 @@ async def send_notification(title: str, message: str, priority: str = "default")
     logger.info(f"Notification: {title} - {message} (priority: {priority})")
 
 
-def execute_task_wrapper(engine: Engine, task_id: str):
+def execute_task_wrapper(database_url: str, task_id: str):
     """
     Wrapper function for task execution that can be pickled.
 
@@ -456,9 +491,13 @@ def execute_task_wrapper(engine: Engine, task_id: str):
     and executes the task with retry logic.
 
     Args:
-        engine: SQLAlchemy engine
+        database_url: Database URL string (engine can't be pickled)
         task_id: The ID of the task to execute
     """
+    # Create engine from database URL
+    from sqlalchemy import create_engine
+    engine = create_engine(database_url)
+
     # Create scheduler instance
     scheduler = TaskScheduler(engine)
 
@@ -524,10 +563,9 @@ def setup_digest_jobs(scheduler: BackgroundScheduler, db: Session):
     # Schedule daily digest job
     if settings.dailyEnabled:
         hour, minute = settings.dailyTime.split(":")
-        from pytz import UTC
         scheduler.add_job(
             send_daily_digest_job,
-            CronTrigger(hour=int(hour), minute=int(minute), timezone=UTC),
+            CronTrigger(hour=int(hour), minute=int(minute), timezone=SCHEDULER_TIMEZONE),
             id="daily_digest",
             name="Daily Digest Email",
             replace_existing=True
@@ -538,14 +576,13 @@ def setup_digest_jobs(scheduler: BackgroundScheduler, db: Session):
     if settings.weeklyEnabled:
         hour, minute = settings.weeklyTime.split(":")
         day_of_week = day_map[settings.weeklyDay.lower()]
-        from pytz import UTC
         scheduler.add_job(
             send_weekly_digest_job,
             CronTrigger(
                 day_of_week=day_of_week,
                 hour=int(hour),
                 minute=int(minute),
-                timezone=UTC
+                timezone=SCHEDULER_TIMEZONE
             ),
             id="weekly_digest",
             name="Weekly Digest Email",
