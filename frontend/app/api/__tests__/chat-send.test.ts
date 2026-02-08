@@ -219,5 +219,41 @@ describe('/api/chat/send', () => {
 
       expect(response.status).toBe(200)
     })
+
+    it('returns 400 for malformed JSON', async () => {
+      const request = new NextRequest('http://localhost:3000/api/chat/send', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: 'not valid json{',
+      })
+      const response = await sendMessage(request)
+      const data = await response.json()
+
+      expect(response.status).toBe(400)
+      expect(data.error).toContain('Invalid JSON')
+    })
+
+    it('handles invalid attachments array gracefully', async () => {
+      const mockMessage = {
+        id: 'msg-new',
+        userId: 'user-1',
+        role: 'user',
+        content: 'Hello',
+        messageType: 'text',
+        message_metadata: null,
+        createdAt: new Date(),
+      }
+
+      vi.mocked(prisma.chatMessage.create).mockResolvedValue(mockMessage as any)
+
+      const request = new NextRequest('http://localhost:3000/api/chat/send', {
+        method: 'POST',
+        body: JSON.stringify({ content: 'Hello', attachments: 'not-an-array' }),
+      })
+      const response = await sendMessage(request)
+
+      // Should succeed (ignore invalid attachments)
+      expect(response.status).toBe(200)
+    })
   })
 })

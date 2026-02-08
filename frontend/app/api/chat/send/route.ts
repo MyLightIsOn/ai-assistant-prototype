@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from 'next/server'
 import { auth } from '@/lib/auth'
 import { prisma } from '@/lib/prisma'
 
+const MAX_CONTENT_LENGTH = 50000
+
 interface SendMessageRequest {
   content: string
   attachments?: string[]
@@ -22,8 +24,16 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    // Parse request body
-    const body: SendMessageRequest = await request.json()
+    // Parse request body with error handling
+    let body: SendMessageRequest
+    try {
+      body = await request.json()
+    } catch {
+      return NextResponse.json(
+        { error: 'Invalid JSON in request body' },
+        { status: 400 }
+      )
+    }
 
     // Validate content
     if (!body.content || typeof body.content !== 'string') {
@@ -40,9 +50,9 @@ export async function POST(request: NextRequest) {
       )
     }
 
-    if (body.content.length > 50000) {
+    if (body.content.length > MAX_CONTENT_LENGTH) {
       return NextResponse.json(
-        { error: 'content must be at most 50000 characters' },
+        { error: `content must be at most ${MAX_CONTENT_LENGTH} characters` },
         { status: 400 }
       )
     }
@@ -58,17 +68,36 @@ export async function POST(request: NextRequest) {
     })
 
     // Link attachments if provided
-    if (body.attachments && body.attachments.length > 0) {
+    if (body.attachments && Array.isArray(body.attachments)) {
+      // Validate array length
+      if (body.attachments.length > 10) {
+        return NextResponse.json(
+          { error: 'Maximum 10 attachments allowed' },
+          { status: 400 }
+        )
+      }
+
       for (const attachmentId of body.attachments) {
+        // Validate attachment ID is string
+        if (typeof attachmentId !== 'string') {
+          continue // Skip invalid IDs
+        }
+
         const attachment = await prisma.chatAttachment.findUnique({
           where: { id: attachmentId },
         })
 
-        if (attachment) {
-          await prisma.chatAttachment.update({
-            where: { id: attachmentId },
-            data: { messageId: userMessage.id },
-          })
+        // Only link if attachment exists and not already linked
+        if (attachment && !attachment.messageId) {
+          try {
+            await prisma.chatAttachment.update({
+              where: { id: attachmentId },
+              data: { messageId: userMessage.id },
+            })
+          } catch {
+            // Attachment might have been deleted, continue with others
+            console.error(`Failed to link attachment ${attachmentId}`)
+          }
         }
       }
     }
