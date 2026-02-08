@@ -59,31 +59,35 @@ async def execute_chat_message(
         context_file = work_dir / "context.json"
         context_file.write_text(json.dumps({"messages": context}, indent=2))
 
+        # TODO: Re-enable MCP integration once server issues are resolved
+        # For now, run without MCP to get basic chat working
         # Create MCP configuration for Claude Code
         # Point to our MCP task server
-        mcp_config = {
-            "mcpServers": {
-                "task-management": {
-                    "command": "python3",
-                    "args": [
-                        str(Path(__file__).parent / "mcp_task_server.py")
-                    ],
-                    "env": {
-                        "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///ai-assistant.db")
-                    }
-                }
-            }
-        }
+        # mcp_config = {
+        #     "mcpServers": {
+        #         "task-management": {
+        #             "command": "python3",
+        #             "args": [
+        #                 str(Path(__file__).parent / "mcp_task_server.py")
+        #             ],
+        #             "env": {
+        #                 "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///ai-assistant.db")
+        #             }
+        #         }
+        #     }
+        # }
 
-        mcp_config_file = work_dir / "mcp_config.json"
-        mcp_config_file.write_text(json.dumps(mcp_config, indent=2))
+        # mcp_config_file = work_dir / "mcp_config.json"
+        # mcp_config_file.write_text(json.dumps(mcp_config, indent=2))
 
-        # Spawn Claude Code subprocess with MCP configuration
-        # Use --mcp-config to point to our MCP server configuration
+        # Spawn Claude Code subprocess
+        # Use -p/--print for non-interactive output
         process = await asyncio.create_subprocess_exec(
             "claude",
-            user_message_content,  # Pass the message as a prompt
-            "--mcp-config", str(mcp_config_file),
+            "-p",  # Non-interactive mode
+            user_message_content,  # Prompt
+            # TODO: Add back MCP config when server is fixed
+            # "--mcp-config", str(mcp_config_file),
             cwd=str(work_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,

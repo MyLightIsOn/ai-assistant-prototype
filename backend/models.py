@@ -413,7 +413,7 @@ class ChatMessage(Base):
     content = Column(String, nullable=False)
     messageType = Column(String, default="text")  # "text", "task_card", "terminal", "error"
     message_metadata = Column("metadata", Text, nullable=True)  # JSON string, mapped from 'metadata' column
-    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    createdAt = Column(BigInteger, default=lambda: int(datetime.now(timezone.utc).timestamp() * 1000))
 
     # Relationships
     attachments = relationship("ChatAttachment", back_populates="message", cascade="all, delete-orphan")
@@ -430,7 +430,7 @@ class ChatAttachment(Base):
     filePath = Column(String, nullable=False)
     fileType = Column(String, nullable=False)  # "image", "code", "log", "other"
     fileSize = Column(Integer, nullable=False)
-    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+    createdAt = Column(BigInteger, default=lambda: int(datetime.now(timezone.utc).timestamp() * 1000))
 
     # Relationship
     message = relationship("ChatMessage", back_populates="attachments")

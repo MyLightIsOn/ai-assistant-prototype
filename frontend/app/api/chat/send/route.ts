@@ -106,7 +106,8 @@ export async function POST(request: NextRequest) {
     const backendUrl = process.env.PYTHON_BACKEND_URL || 'http://localhost:8000'
 
     // Fire and forget - don't await
-    fetch(`${backendUrl}/api/chat/send`, {
+    // Call /api/chat/execute (not /api/chat/send) since message is already created
+    fetch(`${backendUrl}/api/chat/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
