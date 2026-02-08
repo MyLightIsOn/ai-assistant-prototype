@@ -111,14 +111,22 @@ export async function POST(request: NextRequest) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        userId: session.user.id,
-        userMessageId: userMessage.id,
+        userId: String(session.user.id),        // Convert to string for backend
+        userMessageId: String(userMessage.id),  // Convert to string for backend
         content: body.content,
       }),
-    }).catch((error) => {
-      console.error('Failed to trigger backend execution:', error)
-      // Non-blocking - message still saved
     })
+      .then(async (response) => {
+        if (!response.ok) {
+          const error = await response.json().catch(() => ({ detail: 'Unknown error' }))
+          console.error('Backend rejected execution:', error)
+          // TODO: Update message status in DB or broadcast error via WebSocket
+        }
+      })
+      .catch((error) => {
+        console.error('Failed to trigger backend execution:', error)
+        // Non-blocking - message still saved, but execution failed
+      })
 
     return NextResponse.json({
       messageId: userMessage.id,
