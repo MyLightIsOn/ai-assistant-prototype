@@ -68,12 +68,78 @@ async def call_tool(name: str, arguments: dict) -> list[TextContent]:
 
 
 async def create_task_tool(db, args: dict) -> list[TextContent]:
-    """Create a new task - implementation placeholder."""
-    # Will be implemented in next task
-    return [TextContent(
-        type="text",
-        text="create_task not yet implemented"
-    )]
+    """Create a new task."""
+    from datetime import datetime, timezone
+
+    try:
+        # Extract arguments with defaults
+        name = args["name"]
+        description = args.get("description", "")
+        command = args.get("command", "claude")
+        task_args = args.get("args", "")
+        schedule = args["schedule"]
+        priority = args.get("priority", "default")
+        enabled = args.get("enabled", True)
+
+        # Get default user (for now, use first user)
+        from models import User
+        user = db.query(User).first()
+        if not user:
+            return [TextContent(
+                type="text",
+                text="Error: No user found in database. Create a user first."
+            )]
+
+        # Check for duplicate name
+        existing = db.query(Task).filter_by(name=name).first()
+        if existing:
+            return [TextContent(
+                type="text",
+                text=f"Error: A task named '{name}' already exists (ID: {existing.id}). Please choose a different name or update the existing task."
+            )]
+
+        # Validate cron schedule (basic check)
+        parts = schedule.split()
+        if len(parts) != 5:
+            return [TextContent(
+                type="text",
+                text=f"Error: Invalid cron schedule '{schedule}'. Must have 5 parts (minute hour day month weekday). Example: '0 9 * * *' for 9am daily."
+            )]
+
+        # Create task
+        task = Task(
+            userId=user.id,
+            name=name,
+            description=description,
+            command=command,
+            args=task_args,
+            schedule=schedule,
+            priority=priority,
+            enabled=enabled,
+            createdAt=int(datetime.now(timezone.utc).timestamp() * 1000),
+            updatedAt=int(datetime.now(timezone.utc).timestamp() * 1000)
+        )
+
+        db.add(task)
+        db.commit()
+        db.refresh(task)
+
+        return [TextContent(
+            type="text",
+            text=f"Success: Created task '{task.name}' with ID {task.id}. Schedule: {schedule}"
+        )]
+
+    except KeyError as e:
+        return [TextContent(
+            type="text",
+            text=f"Error: Missing required parameter: {str(e)}"
+        )]
+    except Exception as e:
+        db.rollback()
+        return [TextContent(
+            type="text",
+            text=f"Error: Failed to create task: {str(e)}"
+        )]
 
 
 async def main():
