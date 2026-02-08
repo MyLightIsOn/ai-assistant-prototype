@@ -174,6 +174,20 @@ def get_db():
         db.close()
 
 
+def get_current_user(request: Request):
+    """Dependency to get current authenticated user (placeholder)."""
+    # For now, return first user (will integrate with NextAuth later)
+    db = SessionLocal()
+    try:
+        from models import User
+        user = db.query(User).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="No user found")
+        return {"id": user.id, "email": user.email}
+    finally:
+        db.close()
+
+
 @app.get("/api/stats/success-rate")
 async def get_success_rate_endpoint(
     days: int = Query(default=7, ge=1, le=365),
@@ -1174,8 +1188,7 @@ class ChatSendRequest(BaseModel):
 async def send_chat_message(
     request: ChatSendRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db),
-    user: dict = Depends(get_current_user)
+    db: Session = Depends(get_db)
 ):
     """
     Send chat message and execute via Claude Code.
@@ -1220,6 +1233,58 @@ async def send_chat_message(
             extra={"metadata": {"error": str(e)}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+
+
+class ChatExecuteRequest(BaseModel):
+    """Request model for triggering chat execution (message already created)."""
+    userId: str = Field(..., description="User ID who sent the message")
+    userMessageId: str = Field(..., description="ID of the user message to respond to")
+    content: str = Field(..., min_length=1, max_length=50000, description="Message content")
+
+
+@app.post("/api/chat/execute")
+async def execute_chat_message_endpoint(
+    request: ChatExecuteRequest,
+    background_tasks: BackgroundTasks
+):
+    """
+    Trigger AI execution for an existing chat message.
+
+    This endpoint is called by the frontend after it has already created
+    the user message in the database. It triggers Claude Code execution
+    without creating a duplicate message.
+
+    Returns immediately while execution happens in background.
+    """
+    try:
+        from chat_executor import execute_chat_message
+
+        # Trigger async execution
+        background_tasks.add_task(
+            execute_chat_message,
+            user_id=request.userId,
+            user_message_id=request.userMessageId,
+            user_message_content=request.content,
+            broadcast_callback=manager.broadcast
+        )
+
+        logger.info(
+            f"Triggered chat execution for message {request.userMessageId}",
+            extra={"metadata": {"user_id": request.userId, "message_id": request.userMessageId}}
+        )
+
+        return {
+            "status": "executing",
+            "messageId": request.userMessageId,
+            "wsUrl": f"/ws?user_id={request.userId}"
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error triggering chat execution",
+            extra={"metadata": {"error": str(e), "message_id": request.userMessageId}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to trigger execution: {str(e)}")
 
 
 @app.get("/api/chat/messages")
@@ -1308,17 +1373,3 @@ async def clear_chat_context(
             extra={"metadata": {"error": str(e)}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to clear context: {str(e)}")
-
-
-def get_current_user(request: Request):
-    """Dependency to get current authenticated user (placeholder)."""
-    # For now, return first user (will integrate with NextAuth later)
-    db = SessionLocal()
-    try:
-        from models import User
-        user = db.query(User).first()
-        if not user:
-            raise HTTPException(status_code=401, detail="No user found")
-        return {"id": user.id, "email": user.email}
-    finally:
-        db.close()

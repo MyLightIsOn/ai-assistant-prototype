@@ -8,13 +8,15 @@ global.fetch = vi.fn();
 // Mock scrollIntoView
 Element.prototype.scrollIntoView = vi.fn();
 
+type MockFetch = ReturnType<typeof vi.fn>;
+
 describe('ChatContainer', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('renders without crashing', () => {
-    (global.fetch as any).mockResolvedValueOnce({
+    (global.fetch as MockFetch).mockResolvedValueOnce({
       json: async () => ({ messages: [] }),
     });
 
@@ -33,7 +35,7 @@ describe('ChatContainer', () => {
       },
     ];
 
-    (global.fetch as any).mockResolvedValueOnce({
+    (global.fetch as MockFetch).mockResolvedValueOnce({
       json: async () => ({ messages: mockMessages }),
     });
 
