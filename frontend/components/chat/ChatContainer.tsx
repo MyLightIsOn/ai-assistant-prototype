@@ -9,26 +9,41 @@ export interface ChatMessage {
   role: 'user' | 'assistant';
   content: string;
   messageType: 'text' | 'task_card' | 'terminal' | 'error';
-  metadata?: any;
+  metadata?: Record<string, unknown>;
   createdAt: number;
-  attachments?: any[];
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    filePath: string;
+    fileType: string;
+    fileSize: number;
+  }>;
 }
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
 
+  // Fetch messages function
+  const fetchMessages = async () => {
+    try {
+      const response = await fetch('/api/chat/messages');
+      const data = await response.json();
+      setMessages(data.messages);
+    } catch (error) {
+      console.error('Failed to fetch messages:', error);
+    }
+  };
+
   // Fetch messages on mount
   useEffect(() => {
-    fetchMessages();
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    void fetchMessages();
   }, []);
 
   // Poll for assistant response
   useEffect(() => {
     if (!isWaitingForResponse) return;
-
-    let intervalId: NodeJS.Timeout;
-    let timeoutId: NodeJS.Timeout;
 
     const poll = async () => {
       try {
@@ -57,8 +72,8 @@ export function ChatContainer() {
       }
     };
 
-    intervalId = setInterval(poll, 1000);
-    timeoutId = setTimeout(() => {
+    const intervalId = setInterval(poll, 1000);
+    const timeoutId = setTimeout(() => {
       clearInterval(intervalId);
       setIsWaitingForResponse(false);
     }, 30000);
@@ -69,17 +84,7 @@ export function ChatContainer() {
     };
   }, [isWaitingForResponse]);
 
-  async function fetchMessages() {
-    try {
-      const response = await fetch('/api/chat/messages');
-      const data = await response.json();
-      setMessages(data.messages);
-    } catch (error) {
-      console.error('Failed to fetch messages:', error);
-    }
-  }
-
-  async function handleSendMessage(content: string, attachments: File[]) {
+  async function handleSendMessage(content: string) {
     // TODO: Handle file uploads
 
     // Optimistic update with guaranteed unique ID

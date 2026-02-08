@@ -1,13 +1,10 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+generator client {
+  provider = "prisma-client-js"
+}
 
 datasource db {
   provider = "sqlite"
   url      = env("DATABASE_URL")
-}
-
-generator client {
-  provider = "prisma-client-js"
 }
 
 model User {
@@ -17,9 +14,9 @@ model User {
   passwordHash String
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
+  chatMessages ChatMessage[]
   sessions     Session[]
   tasks        Task[]
-  chatMessages ChatMessage[]
 }
 
 model Session {
@@ -41,11 +38,11 @@ model Task {
   enabled     Boolean         @default(true)
   priority    String          @default("default")
   notifyOn    String          @default("completion,error")
-  metadata    String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
   lastRun     DateTime?
   nextRun     DateTime?
+  metadata    String?
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
   executions  TaskExecution[]
 }
@@ -58,8 +55,8 @@ model TaskExecution {
   completedAt DateTime?
   output      String?
   duration    Int?
-  task        Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
   logs        ActivityLog[]
+  task        Task          @relation(fields: [taskId], references: [id], onDelete: Cascade)
 }
 
 model ActivityLog {
@@ -93,27 +90,27 @@ model AiMemory {
 }
 
 model DigestSettings {
-  id                  String   @id @default(cuid())
-  dailyEnabled        Boolean  @default(true)
-  dailyTime           String   @default("20:00")
-  weeklyEnabled       Boolean  @default(true)
-  weeklyDay           String   @default("monday")
-  weeklyTime          String   @default("09:00")
-  recipientEmail      String
-  createdAt           DateTime @default(now())
-  updatedAt           DateTime @updatedAt
+  id             String   @id @default(cuid())
+  dailyEnabled   Boolean  @default(true)
+  dailyTime      String   @default("20:00")
+  weeklyEnabled  Boolean  @default(true)
+  weeklyDay      String   @default("monday")
+  weeklyTime     String   @default("09:00")
+  recipientEmail String
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
 }
 
 model ChatMessage {
-  id          String            @id @default(cuid())
+  id          String           @id @default(cuid())
   userId      String
-  role        String            // "user" or "assistant"
-  content     String            // Message text content
-  messageType String            @default("text") // "text", "task_card", "terminal", "error"
-  metadata    String?           // JSON: task refs, execution IDs, error details, tool calls
-  createdAt   DateTime          @default(now())
+  role        String
+  content     String
+  messageType String           @default("text")
+  metadata    String?
+  createdAt   DateTime         @default(now())
   attachments ChatAttachment[]
-  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt])
 }
@@ -122,11 +119,19 @@ model ChatAttachment {
   id        String      @id @default(cuid())
   messageId String
   fileName  String
-  filePath  String      // Path in ai-workspace/chat/attachments/
-  fileType  String      // "image", "code", "log", "other"
+  filePath  String
+  fileType  String
   fileSize  Int
   createdAt DateTime    @default(now())
   message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
+}
+
+model apscheduler_jobs {
+  id            String @id
+  next_run_time Float?
+  job_state     Bytes
+
+  @@index([next_run_time], map: "ix_apscheduler_jobs_next_run_time")
 }
