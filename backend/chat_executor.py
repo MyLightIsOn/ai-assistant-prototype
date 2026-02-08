@@ -69,7 +69,7 @@ async def execute_chat_message(
                         str(Path(__file__).parent / "mcp_task_server.py")
                     ],
                     "env": {
-                        "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///ai-assistant.db")
+                        "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///../ai-assistant.db")
                     }
                 }
             }
@@ -88,7 +88,7 @@ async def execute_chat_message(
             cwd=str(work_dir),
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.PIPE,
-            env={**os.environ, "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///ai-assistant.db")}
+            env={**os.environ, "DATABASE_URL": os.getenv("DATABASE_URL", "sqlite:///../ai-assistant.db")}
         )
 
         # Read output with timeout
