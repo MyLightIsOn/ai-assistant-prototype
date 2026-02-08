@@ -27,12 +27,13 @@ export async function GET(request: NextRequest) {
     // Fetch messages and total count in parallel
     const [messages, total] = await Promise.all([
       prisma.chatMessage.findMany({
+        where: { userId: session.user.id },
         orderBy: { createdAt: 'desc' },
-        take: limit,
-        skip: offset,
+        offset,
+        limit,
         include: { attachments: true },
       }),
-      prisma.chatMessage.count(),
+      prisma.chatMessage.count({ where: { userId: session.user.id } }),
     ]);
 
     // Transform messages to response format
