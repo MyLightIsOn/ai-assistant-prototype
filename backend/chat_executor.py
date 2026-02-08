@@ -97,8 +97,18 @@ async def execute_chat_message(
                 timeout=300  # 5 minute timeout
             )
         except asyncio.TimeoutError:
-            process.kill()
-            await process.wait()
+            # Try graceful shutdown first
+            process.terminate()  # SIGTERM
+            try:
+                await asyncio.wait_for(process.wait(), timeout=5)
+            except asyncio.TimeoutError:
+                # Force kill if graceful fails
+                process.kill()  # SIGKILL
+                await process.wait()
+
+            # Log timeout for debugging
+            logger.error(f"Claude Code execution timed out for message {assistant_msg.id}")
+
             raise Exception("Claude Code execution timed out after 5 minutes")
 
         # Parse response

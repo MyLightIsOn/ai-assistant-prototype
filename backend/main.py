@@ -19,7 +19,7 @@ load_dotenv()
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Query, HTTPException, Request, BackgroundTasks, Depends
 from fastapi.responses import Response
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -1166,8 +1166,8 @@ from models import ChatMessage as ChatMessageModel, ChatAttachment as ChatAttach
 
 class ChatSendRequest(BaseModel):
     """Request model for sending chat message."""
-    content: str
-    attachments: list[str] = []  # List of attachment IDs
+    content: str = Field(..., min_length=1, max_length=50000, description="Message content (1-50000 characters)")
+    attachments: list[str] = Field(default_factory=list, max_length=10, description="List of attachment IDs (max 10)")
 
 
 @app.post("/api/chat/send")
@@ -1251,7 +1251,7 @@ async def get_chat_messages(
                 "content": msg.content,
                 "messageType": msg.messageType,
                 "metadata": msg.message_metadata,
-                "createdAt": msg.createdAt,
+                "createdAt": int(msg.createdAt.timestamp() * 1000) if isinstance(msg.createdAt, datetime) else msg.createdAt,
                 "attachments": [
                     {
                         "id": att.id,

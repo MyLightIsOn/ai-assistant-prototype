@@ -19,7 +19,7 @@ async def test_build_context_includes_last_10_messages():
                 userId=user.id,
                 role="user" if i % 2 == 0 else "assistant",
                 content=f"Message {i}",
-                createdAt=int((datetime.now(timezone.utc) - timedelta(hours=15-i)).timestamp() * 1000)
+                createdAt=datetime.now(timezone.utc) - timedelta(hours=15-i)
             )
             db.add(msg)
         db.commit()

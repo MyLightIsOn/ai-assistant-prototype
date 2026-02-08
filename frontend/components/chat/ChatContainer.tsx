@@ -16,12 +16,58 @@ export interface ChatMessage {
 
 export function ChatContainer() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
-  const [isLoading, setIsLoading] = useState(false);
+  const [isWaitingForResponse, setIsWaitingForResponse] = useState(false);
 
   // Fetch messages on mount
   useEffect(() => {
     fetchMessages();
   }, []);
+
+  // Poll for assistant response
+  useEffect(() => {
+    if (!isWaitingForResponse) return;
+
+    let intervalId: NodeJS.Timeout;
+    let timeoutId: NodeJS.Timeout;
+
+    const poll = async () => {
+      try {
+        const response = await fetch('/api/chat/messages');
+        const data = await response.json();
+
+        // Find new assistant messages
+        setMessages(prev => {
+          const newMessages = data.messages.filter(
+            (msg: ChatMessage) =>
+              msg.role === 'assistant' &&
+              !prev.find(m => m.id === msg.id)
+          );
+
+          if (newMessages.length > 0) {
+            setIsWaitingForResponse(false);
+            clearInterval(intervalId);
+            clearTimeout(timeoutId);
+            return [...prev, ...newMessages];
+          }
+
+          return prev;
+        });
+      } catch (error) {
+        console.error('Polling error:', error);
+      }
+    };
+
+    intervalId = setInterval(poll, 1000);
+    timeoutId = setTimeout(() => {
+      clearInterval(intervalId);
+      setIsWaitingForResponse(false);
+    }, 30000);
+
+    return () => {
+      clearInterval(intervalId);
+      clearTimeout(timeoutId);
+    };
+  }, [isWaitingForResponse]);
 
   async function fetchMessages() {
     try {
@@ -36,16 +82,17 @@ export function ChatContainer() {
   async function handleSendMessage(content: string, attachments: File[]) {
     // TODO: Handle file uploads
 
-    // Optimistic update
+    // Optimistic update with guaranteed unique ID
+    const optimisticId = crypto.randomUUID();
     const optimisticMessage: ChatMessage = {
-      id: `temp-${Date.now()}`,
+      id: optimisticId,
       role: 'user',
       content,
       messageType: 'text',
       createdAt: Date.now()
     };
     setMessages(prev => [...prev, optimisticMessage]);
-    setIsLoading(true);
+    setIsWaitingForResponse(true);
 
     try {
       // Send message
@@ -55,57 +102,33 @@ export function ChatContainer() {
         body: JSON.stringify({ content, attachments: [] })
       });
 
-      const { messageId } = await response.json();
+      if (response.ok) {
+        const { messageId } = await response.json();
 
-      // Update optimistic message with real ID
-      setMessages(prev => prev.map(msg =>
-        msg.id === optimisticMessage.id
-          ? { ...msg, id: messageId }
-          : msg
-      ));
-
-      // Poll for response (will be replaced with WebSocket)
-      pollForResponse();
-
+        // Replace optimistic message with real ID
+        setMessages(prev => prev.map(msg =>
+          msg.id === optimisticId
+            ? { ...msg, id: messageId }
+            : msg
+        ));
+      } else {
+        // Remove failed optimistic message
+        setMessages(prev => prev.filter(msg => msg.id !== optimisticId));
+        setIsWaitingForResponse(false);
+        console.error('Failed to send message:', response.statusText);
+      }
     } catch (error) {
       console.error('Failed to send message:', error);
-      setIsLoading(false);
+      // Remove failed optimistic message
+      setMessages(prev => prev.filter(msg => msg.id !== optimisticId));
+      setIsWaitingForResponse(false);
     }
-  }
-
-  async function pollForResponse() {
-    // Simple polling - will be replaced with WebSocket
-    const interval = setInterval(async () => {
-      try {
-        const response = await fetch('/api/chat/messages?limit=1');
-        const data = await response.json();
-
-        if (data.messages.length > 0) {
-          const lastMessage = data.messages[data.messages.length - 1];
-
-          if (lastMessage.role === 'assistant' &&
-              !messages.find(m => m.id === lastMessage.id)) {
-            setMessages(prev => [...prev, lastMessage]);
-            setIsLoading(false);
-            clearInterval(interval);
-          }
-        }
-      } catch (error) {
-        console.error('Polling error:', error);
-      }
-    }, 1000);
-
-    // Stop after 30 seconds
-    setTimeout(() => {
-      clearInterval(interval);
-      setIsLoading(false);
-    }, 30000);
   }
 
   return (
     <div className="flex h-full flex-col">
-      <MessageList messages={messages} isLoading={isLoading} />
-      <ChatInput onSend={handleSendMessage} disabled={isLoading} />
+      <MessageList messages={messages} isLoading={isWaitingForResponse} />
+      <ChatInput onSend={handleSendMessage} disabled={isWaitingForResponse} />
     </div>
   );
 }

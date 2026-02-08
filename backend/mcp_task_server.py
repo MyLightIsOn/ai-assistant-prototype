@@ -9,6 +9,7 @@ import json
 import sys
 from pathlib import Path
 
+from croniter import croniter
 from mcp.server import Server
 from mcp.types import Tool, TextContent
 
@@ -165,11 +166,13 @@ async def create_task_tool(db, args: dict) -> list[TextContent]:
             )]
 
         # Validate cron schedule (basic check)
-        parts = schedule.split()
-        if len(parts) != 5:
+        # Validate cron schedule using croniter
+        try:
+            croniter(schedule)
+        except (ValueError, KeyError) as e:
             return [TextContent(
                 type="text",
-                text=f"Error: Invalid cron schedule '{schedule}'. Must have 5 parts (minute hour day month weekday). Example: '0 9 * * *' for 9am daily."
+                text=f"Error: Invalid cron schedule '{schedule}': {str(e)}. Example: '0 9 * * *' for 9am daily."
             )]
 
         # Create task

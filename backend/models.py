@@ -5,7 +5,7 @@ These models EXACTLY mirror the Prisma schema defined in frontend/prisma/schema.
 Any changes to the Prisma schema should be reflected here to maintain database consistency.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 import time
 import random
@@ -407,13 +407,13 @@ class ChatMessage(Base):
     """Chat message model for conversational AI interactions."""
     __tablename__ = "ChatMessage"
 
-    id = Column(String, primary_key=True, default=lambda: f"msg_{uuid.uuid4().hex[:12]}")
+    id = Column(String, primary_key=True, default=generate_cuid)
     userId = Column(String, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
     role = Column(String, nullable=False)  # "user" or "assistant"
     content = Column(String, nullable=False)
     messageType = Column(String, default="text")  # "text", "task_card", "terminal", "error"
-    message_metadata = Column("metadata", JSON, nullable=True)  # Store as JSON, mapped from 'metadata' column
-    createdAt = Column(BigInteger, default=lambda: int(datetime.now().timestamp() * 1000))
+    message_metadata = Column("metadata", Text, nullable=True)  # JSON string, mapped from 'metadata' column
+    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationships
     attachments = relationship("ChatAttachment", back_populates="message", cascade="all, delete-orphan")
@@ -424,13 +424,13 @@ class ChatAttachment(Base):
     """File attachment for chat messages."""
     __tablename__ = "ChatAttachment"
 
-    id = Column(String, primary_key=True, default=lambda: f"att_{uuid.uuid4().hex[:12]}")
+    id = Column(String, primary_key=True, default=generate_cuid)
     messageId = Column(String, ForeignKey("ChatMessage.id", ondelete="CASCADE"), nullable=False)
     fileName = Column(String, nullable=False)
     filePath = Column(String, nullable=False)
     fileType = Column(String, nullable=False)  # "image", "code", "log", "other"
     fileSize = Column(Integer, nullable=False)
-    createdAt = Column(BigInteger, default=lambda: int(datetime.now().timestamp() * 1000))
+    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
 
     # Relationship
     message = relationship("ChatMessage", back_populates="attachments")
