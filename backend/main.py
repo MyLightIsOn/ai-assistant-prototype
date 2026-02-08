@@ -1154,3 +1154,171 @@ async def send_test_digest(
             extra={"metadata": {"error": str(e), "digest_type": digest_type}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to send test digest: {str(e)}")
+
+
+# ============================================================================
+# Chat Endpoints
+# ============================================================================
+
+from chat_executor import execute_chat_message
+from models import ChatMessage as ChatMessageModel, ChatAttachment as ChatAttachmentModel
+
+
+class ChatSendRequest(BaseModel):
+    """Request model for sending chat message."""
+    content: str
+    attachments: list[str] = []  # List of attachment IDs
+
+
+@app.post("/api/chat/send")
+async def send_chat_message(
+    request: ChatSendRequest,
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Send chat message and execute via Claude Code.
+
+    Returns message ID and WebSocket URL for streaming.
+    """
+    try:
+        # Create user message
+        user_msg = ChatMessageModel(
+            userId=user["id"],
+            role="user",
+            content=request.content,
+            messageType="text"
+        )
+        db.add(user_msg)
+        db.commit()
+        db.refresh(user_msg)
+
+        # Link attachments
+        for attachment_id in request.attachments:
+            attachment = db.query(ChatAttachmentModel).filter_by(id=attachment_id).first()
+            if attachment:
+                attachment.messageId = user_msg.id
+        db.commit()
+
+        # Trigger async execution
+        background_tasks.add_task(
+            execute_chat_message,
+            user_id=user["id"],
+            user_message_id=user_msg.id,
+            user_message_content=request.content
+        )
+
+        return {
+            "messageId": user_msg.id,
+            "wsUrl": f"/ws?user_id={user['id']}"
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error sending chat message",
+            extra={"metadata": {"error": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to send message: {str(e)}")
+
+
+@app.get("/api/chat/messages")
+async def get_chat_messages(
+    limit: int = Query(default=50, ge=1, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Get chat message history for current user.
+
+    Returns messages in reverse chronological order (newest first).
+    """
+    try:
+        messages = db.query(ChatMessageModel)\
+            .filter_by(userId=user["id"])\
+            .order_by(ChatMessageModel.createdAt.desc())\
+            .offset(offset)\
+            .limit(limit)\
+            .all()
+
+        # Convert to dict and reverse to chronological order
+        message_dicts = []
+        for msg in reversed(messages):
+            message_dicts.append({
+                "id": msg.id,
+                "role": msg.role,
+                "content": msg.content,
+                "messageType": msg.messageType,
+                "metadata": msg.message_metadata,
+                "createdAt": msg.createdAt,
+                "attachments": [
+                    {
+                        "id": att.id,
+                        "fileName": att.fileName,
+                        "filePath": att.filePath,
+                        "fileType": att.fileType,
+                        "fileSize": att.fileSize
+                    }
+                    for att in msg.attachments
+                ]
+            })
+
+        return {
+            "messages": message_dicts,
+            "total": db.query(ChatMessageModel).filter_by(userId=user["id"]).count()
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error fetching chat messages",
+            extra={"metadata": {"error": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to fetch messages: {str(e)}")
+
+
+@app.delete("/api/chat/clear")
+async def clear_chat_context(
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
+):
+    """
+    Clear chat conversation context (delete all messages).
+    """
+    try:
+        deleted_count = db.query(ChatMessageModel)\
+            .filter_by(userId=user["id"])\
+            .delete()
+
+        db.commit()
+
+        logger.info(
+            f"Cleared chat context for user {user['id']}",
+            extra={"metadata": {"deleted_count": deleted_count}}
+        )
+
+        return {
+            "success": True,
+            "deleted_count": deleted_count
+        }
+
+    except Exception as e:
+        logger.error(
+            "Error clearing chat context",
+            extra={"metadata": {"error": str(e)}}
+        )
+        raise HTTPException(status_code=500, detail=f"Failed to clear context: {str(e)}")
+
+
+def get_current_user(request: Request):
+    """Dependency to get current authenticated user (placeholder)."""
+    # For now, return first user (will integrate with NextAuth later)
+    db = SessionLocal()
+    try:
+        from models import User
+        user = db.query(User).first()
+        if not user:
+            raise HTTPException(status_code=401, detail="No user found")
+        return {"id": user.id, "email": user.email}
+    finally:
+        db.close()
