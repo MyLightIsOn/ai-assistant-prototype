@@ -11,14 +11,15 @@ generator client {
 }
 
 model User {
-  id           String    @id @default(cuid())
-  email        String    @unique
+  id           String        @id @default(cuid())
+  email        String        @unique
   name         String?
   passwordHash String
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
   sessions     Session[]
   tasks        Task[]
+  chatMessages ChatMessage[]
 }
 
 model Session {
@@ -101,4 +102,31 @@ model DigestSettings {
   recipientEmail      String
   createdAt           DateTime @default(now())
   updatedAt           DateTime @updatedAt
+}
+
+model ChatMessage {
+  id          String            @id @default(cuid())
+  userId      String
+  role        String            // "user" or "assistant"
+  content     String            // Message text content
+  messageType String            @default("text") // "text", "task_card", "terminal", "error"
+  metadata    String?           // JSON: task refs, execution IDs, error details, tool calls
+  createdAt   DateTime          @default(now())
+  attachments ChatAttachment[]
+  user        User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+}
+
+model ChatAttachment {
+  id        String      @id @default(cuid())
+  messageId String
+  fileName  String
+  filePath  String      // Path in ai-workspace/chat/attachments/
+  fileType  String      // "image", "code", "log", "other"
+  fileSize  Int
+  createdAt DateTime    @default(now())
+  message   ChatMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  @@index([messageId])
 }
