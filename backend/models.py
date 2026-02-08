@@ -5,11 +5,12 @@ These models EXACTLY mirror the Prisma schema defined in frontend/prisma/schema.
 Any changes to the Prisma schema should be reflected here to maintain database consistency.
 """
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional, List
 import time
 import random
 import string
+import uuid
 
 from sqlalchemy import (
     Column, String, DateTime, Boolean, Integer, BigInteger, ForeignKey, Text, JSON
@@ -99,6 +100,7 @@ class User(Base):
     # Relationships
     sessions = relationship("Session", back_populates="user", cascade="all, delete-orphan")
     tasks = relationship("Task", back_populates="user", cascade="all, delete-orphan")
+    chat_messages = relationship("ChatMessage", back_populates="user", cascade="all, delete-orphan")
 
 
 class Session(Base):
@@ -395,3 +397,40 @@ class DigestSettingsResponse(DigestSettingsBase):
     updatedAt: int
 
     model_config = ConfigDict(from_attributes=True)
+
+
+# ============================================================================
+# Chat Models
+# ============================================================================
+
+class ChatMessage(Base):
+    """Chat message model for conversational AI interactions."""
+    __tablename__ = "ChatMessage"
+
+    id = Column(String, primary_key=True, default=generate_cuid)
+    userId = Column(String, ForeignKey("User.id", ondelete="CASCADE"), nullable=False)
+    role = Column(String, nullable=False)  # "user" or "assistant"
+    content = Column(String, nullable=False)
+    messageType = Column(String, default="text")  # "text", "task_card", "terminal", "error"
+    message_metadata = Column("metadata", Text, nullable=True)  # JSON string, mapped from 'metadata' column
+    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationships
+    attachments = relationship("ChatAttachment", back_populates="message", cascade="all, delete-orphan")
+    user = relationship("User", back_populates="chat_messages")
+
+
+class ChatAttachment(Base):
+    """File attachment for chat messages."""
+    __tablename__ = "ChatAttachment"
+
+    id = Column(String, primary_key=True, default=generate_cuid)
+    messageId = Column(String, ForeignKey("ChatMessage.id", ondelete="CASCADE"), nullable=False)
+    fileName = Column(String, nullable=False)
+    filePath = Column(String, nullable=False)
+    fileType = Column(String, nullable=False)  # "image", "code", "log", "other"
+    fileSize = Column(Integer, nullable=False)
+    createdAt = Column(DateTime, default=lambda: datetime.now(timezone.utc))
+
+    # Relationship
+    message = relationship("ChatMessage", back_populates="attachments")

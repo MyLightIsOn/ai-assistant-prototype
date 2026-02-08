@@ -10,6 +10,7 @@ alembic>=1.13.0
 # Task scheduling
 apscheduler>=3.10.0
 pytz>=2025.1
+croniter>=2.0.0
 
 # Configuration
 python-dotenv>=1.0.0
@@ -35,3 +36,6 @@ pydantic-settings>=2.1.0
 pytest>=7.4.0
 pytest-asyncio>=0.23.0
 httpx>=0.26.0
+
+# MCP (Model Context Protocol)
+mcp>=1.0.0
