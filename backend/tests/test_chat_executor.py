@@ -7,7 +7,7 @@ from models import ChatMessage, User
 
 @pytest.mark.asyncio
 async def test_execute_chat_message_creates_response():
-    """Test that chat executor creates assistant response (mocked)."""
+    """Test that chat executor creates assistant response with streaming."""
     db = SessionLocal()
 
     try:
@@ -23,14 +23,33 @@ async def test_execute_chat_message_creates_response():
         db.commit()
         db.refresh(user_msg)
 
-        # Mock the subprocess call to avoid actually calling Claude Code
-        mock_stdout = b"Hello! How can I help you today?"
-        mock_stderr = b""
+        # Mock the subprocess to match actual implementation:
+        # - process.stdout.read(chunk_size) - returns chunks then EOF
+        # - process.stderr.read() - returns stderr data
+        # - process.wait() - returns exit code
+        # - process.returncode - checked during streaming
 
-        with patch('asyncio.create_subprocess_exec') as mock_subprocess:
-            # Configure mock process
-            mock_process = AsyncMock()
-            mock_process.communicate = AsyncMock(return_value=(mock_stdout, mock_stderr))
+        mock_response = b"Hello! How can I help you today?"
+
+        # Mock stdout stream that returns data in chunks
+        mock_stdout = AsyncMock()
+        mock_stdout.read = AsyncMock(side_effect=[
+            mock_response,  # First read returns data
+            b""  # Second read returns EOF (empty bytes)
+        ])
+
+        # Mock stderr stream
+        mock_stderr = AsyncMock()
+        mock_stderr.read = AsyncMock(return_value=b"")
+
+        # Mock process
+        mock_process = AsyncMock()
+        mock_process.stdout = mock_stdout
+        mock_process.stderr = mock_stderr
+        mock_process.returncode = None  # Initially None, then set to 0
+        mock_process.wait = AsyncMock(return_value=0)
+
+        with patch('chat_executor.asyncio.create_subprocess_exec') as mock_subprocess:
             mock_subprocess.return_value = mock_process
 
             # Execute
@@ -40,12 +59,18 @@ async def test_execute_chat_message_creates_response():
                 user_message_content=user_msg.content
             )
 
-            # Should create assistant response
+            # Verify assistant response was created
             assistant_msg = db.query(ChatMessage).filter_by(id=assistant_msg_id).first()
             assert assistant_msg is not None
             assert assistant_msg.role == "assistant"
-            assert len(assistant_msg.content) > 0
+            assert assistant_msg.content == mock_response.decode('utf-8')
             assert "Hello" in assistant_msg.content
+
+            # Verify subprocess was called correctly
+            mock_subprocess.assert_called_once()
+            call_args = mock_subprocess.call_args
+            assert call_args[0][0] == "claude"  # First arg is 'claude'
+            assert call_args[0][1] == user_msg.content  # Second arg is message content
 
     finally:
         db.query(ChatMessage).filter_by(userId=user.id).delete()
