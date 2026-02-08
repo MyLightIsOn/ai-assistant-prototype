@@ -1183,7 +1183,8 @@ class ChatSendRequest(BaseModel):
 async def send_chat_message(
     request: ChatSendRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
 ):
     """
     Send chat message and execute via Claude Code.
