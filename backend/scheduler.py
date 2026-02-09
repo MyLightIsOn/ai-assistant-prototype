@@ -195,7 +195,7 @@ class TaskScheduler:
 
                     # Build datetime for current year
                     try:
-                        run_time = datetime(current_year, month, day, hour, minute, tzinfo=SCHEDULER_TIMEZONE)
+                        run_time = SCHEDULER_TIMEZONE.localize(datetime(current_year, month, day, hour, minute))
 
                         # If the time has passed today/this year, it's a past one-time task
                         if run_time < now:
@@ -419,13 +419,70 @@ class TaskScheduler:
                     )
 
 
+async def execute_send_email(args: str) -> tuple[str, int]:
+    """
+    Execute send-email command using Gmail API.
+
+    Parses args like: --to recipient@email.com --subject "Subject" --body "Body"
+
+    Returns:
+        Tuple of (output, exit_code)
+    """
+    import shlex
+    from gmail_sender import GmailSender
+
+    try:
+        # Parse args
+        tokens = shlex.split(args)
+        to = None
+        subject = None
+        body = None
+
+        i = 0
+        while i < len(tokens):
+            if tokens[i] == '--to' and i + 1 < len(tokens):
+                to = tokens[i + 1]
+                i += 2
+            elif tokens[i] == '--subject' and i + 1 < len(tokens):
+                subject = tokens[i + 1]
+                i += 2
+            elif tokens[i] == '--body' and i + 1 < len(tokens):
+                body = tokens[i + 1]
+                i += 2
+            else:
+                i += 1
+
+        if not to or not subject:
+            return ("Error: --to and --subject are required", 1)
+
+        body = body or ""
+        body_html = f"<html><body><p>{body}</p></body></html>"
+
+        sender = GmailSender()
+        message_id = sender.send_email(
+            to=to,
+            subject=subject,
+            body_html=body_html,
+            body_text=body
+        )
+
+        output = f"Email sent successfully to {to}\nSubject: {subject}\nBody: {body}\nMessage ID: {message_id}"
+        logger.info(output)
+        return (output, 0)
+
+    except Exception as e:
+        error_msg = f"Failed to send email: {str(e)}"
+        logger.error(error_msg)
+        return (error_msg, 1)
+
+
 async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
     """
-    Execute a Claude command.
+    Execute a task command. Routes to appropriate handler based on command type.
 
     Args:
-        command: The command to execute
-        args: Command arguments (task description for Claude)
+        command: The command to execute (e.g., "claude", "send-email")
+        args: Command arguments
 
     Returns:
         Tuple of (output, exit_code)
@@ -435,6 +492,11 @@ async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
 
     logger.info(f"Executing command: {command} with args: {args}")
 
+    # Route to appropriate handler based on command
+    if command == "send-email":
+        return await execute_send_email(args)
+
+    # Default: execute via Claude CLI
     # Get workspace path from environment or use default
     workspace_path = os.getenv('AI_WORKSPACE', 'ai-workspace')
 
