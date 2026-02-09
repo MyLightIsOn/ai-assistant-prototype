@@ -493,7 +493,7 @@ async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
     logger.info(f"Executing command: {command} with args: {args}")
 
     # Route to appropriate handler based on command
-    if command == "send-email":
+    if command in ("send-email", "send_email"):
         return await execute_send_email(args)
 
     # Default: execute via Claude CLI
