@@ -59,6 +59,13 @@ async def create_task(db: Session, args: dict) -> str:
         db.commit()
         db.refresh(task)
 
+        # Sync with scheduler so the task gets picked up immediately
+        try:
+            import requests
+            requests.post("http://localhost:8000/api/scheduler/sync", timeout=5)
+        except Exception:
+            pass  # Non-critical: scheduler will pick it up on next sync/restart
+
         return f"Success: Created task '{task.name}' with ID {task.id}. Schedule: {schedule}"
 
     except KeyError as e:

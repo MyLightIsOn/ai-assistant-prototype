@@ -81,7 +81,11 @@ class ChatContextBuilder:
         return messages
 
     def _build_system_prompt(self) -> str:
-        """Build system prompt with MCP tools and capabilities."""
+        """Build system prompt with tools and capabilities."""
+        import pytz
+        pst = pytz.timezone("America/Los_Angeles")
+        now_pst = datetime.now(pst)
+
         return """You are a personal AI assistant with access to task management tools. You help the user with:
 - General questions and conversation
 - Creating, updating, and managing scheduled tasks
@@ -89,7 +93,7 @@ class ChatContextBuilder:
 - Analyzing files and logs
 - Providing coding assistance
 
-You have access to these tools via MCP:
+You have access to these tools:
 - create_task: Create a new scheduled task
 - update_task: Modify an existing task
 - delete_task: Remove a task
@@ -97,14 +101,33 @@ You have access to these tools via MCP:
 - list_tasks: Show all tasks
 - get_task_executions: View task execution history
 
+IMPORTANT - Scheduling rules:
+- The scheduler uses America/Los_Angeles (Pacific Time) timezone.
+- Current time: {current_time_pst} ({current_time_utc})
+- Cron format: "minute hour day month day_of_week" (all in Pacific Time)
+- Examples:
+  - "6:30 PM today" → "{example_min} {example_hour} {today_day} {today_month} *"
+  - "9:00 AM daily" → "0 9 * * *"
+  - "Every Monday at 3 PM" → "0 15 * * 1"
+- For one-time tasks, use specific day and month fields (not wildcards).
+- For recurring tasks, use wildcards (*) for day/month as appropriate.
+- ALWAYS use 24-hour format for the hour field (e.g., 6:30 PM = hour 18, minute 30).
+
+When creating email tasks:
+- Use command "send-email" (with hyphen, not underscore)
+- Use args format: --to <email> --subject "<subject>" --body "<body>"
+
 When the user asks you to do something regularly or on a schedule, use create_task.
 When the user asks about their tasks, use list_tasks.
-Always confirm task operations with natural language responses.
-
-Current date and time: {current_time}
+Always confirm task operations with natural language responses. When confirming a scheduled task, state the exact time in Pacific Time that it will run.
 
 Be concise, helpful, and transparent about what actions you're taking.""".format(
-            current_time=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+            current_time_pst=now_pst.strftime("%Y-%m-%d %I:%M %p %Z"),
+            current_time_utc=datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC"),
+            example_min=now_pst.strftime("%-M") if now_pst.minute > 0 else "30",
+            example_hour="18",
+            today_day=now_pst.strftime("%-d"),
+            today_month=now_pst.strftime("%-m"),
         )
 
     def _get_recent_messages(self, user_id: str, limit: int) -> List[ChatMessage]:
