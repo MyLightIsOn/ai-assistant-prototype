@@ -50,19 +50,25 @@ export function ChatContainer() {
         const response = await fetch('/api/chat/messages');
         const data = await response.json();
 
-        // Find new assistant messages
-        setMessages(prev => {
-          const newMessages = data.messages.filter(
-            (msg: ChatMessage) =>
-              msg.role === 'assistant' &&
-              !prev.find(m => m.id === msg.id)
-          );
+        // Find new assistant messages that have actual content
+        // (the backend creates an empty placeholder first, then fills it in)
+        const newMessages = (data.messages as ChatMessage[]).filter(
+          (msg) =>
+            msg.role === 'assistant' &&
+            msg.content &&
+            msg.content.length > 0
+        );
 
-          if (newMessages.length > 0) {
+        setMessages(prev => {
+          const lastAssistant = newMessages[newMessages.length - 1];
+          if (lastAssistant && !prev.find(m => m.id === lastAssistant.id)) {
             setIsWaitingForResponse(false);
             clearInterval(intervalId);
             clearTimeout(timeoutId);
-            return [...prev, ...newMessages];
+            // Replace full message list from server to stay in sync
+            return data.messages.filter(
+              (msg: ChatMessage) => !msg.role || msg.content?.length > 0
+            );
           }
 
           return prev;
@@ -76,6 +82,8 @@ export function ChatContainer() {
     const timeoutId = setTimeout(() => {
       clearInterval(intervalId);
       setIsWaitingForResponse(false);
+      // On timeout, refresh from server anyway
+      void fetchMessages();
     }, 30000);
 
     return () => {
