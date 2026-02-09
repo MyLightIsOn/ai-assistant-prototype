@@ -296,7 +296,7 @@ class TaskScheduler:
             # Execute the task
             start_time = datetime.now(timezone.utc)
             try:
-                output, exit_code = await execute_claude_command(task.command, task.args)
+                output, exit_code = await execute_claude_command(task.command, task.args, task.description)
 
                 # Update execution record
                 end_time = datetime.now(timezone.utc)
@@ -476,13 +476,14 @@ async def execute_send_email(args: str) -> tuple[str, int]:
         return (error_msg, 1)
 
 
-async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
+async def execute_claude_command(command: str, args: str, description: str = "") -> tuple[str, int]:
     """
     Execute a task command. Routes to appropriate handler based on command type.
 
     Args:
         command: The command to execute (e.g., "claude", "send-email")
         args: Command arguments
+        description: Task description (used as fallback prompt for claude tasks)
 
     Returns:
         Tuple of (output, exit_code)
@@ -497,6 +498,11 @@ async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
         return await execute_send_email(args)
 
     # Default: execute via Claude CLI
+    # Use args as the prompt; fall back to description if args is empty
+    prompt = args.strip() if args and args.strip() else description or ""
+    if not prompt:
+        return ("Error: No prompt provided for Claude task (both args and description are empty)", 1)
+
     # Get workspace path from environment or use default
     workspace_path = os.getenv('AI_WORKSPACE', 'ai-workspace')
 
@@ -505,7 +511,7 @@ async def execute_claude_command(command: str, args: str) -> tuple[str, int]:
     exit_code = 0
 
     try:
-        async for line in execute_claude_task(args, workspace_path, timeout=300):
+        async for line in execute_claude_task(prompt, workspace_path, timeout=3600):
             output_lines.append(line)
             logger.debug(f"Claude output: {line}")
 

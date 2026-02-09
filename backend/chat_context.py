@@ -117,6 +117,15 @@ When creating email tasks:
 - Use command "send-email" (with hyphen, not underscore)
 - Use args format: --to <email> --subject "<subject>" --body "<body>"
 
+When creating Claude AI tasks (development work, research, analysis, etc.):
+- Use command "claude"
+- The args field is passed directly as a prompt to the Claude Code CLI
+- IMPORTANT: args must be a plain text description of the work, NOT CLI flags
+- Do NOT use flags like --repo, --task, --project, etc. — these do not exist
+- Instead, put everything into the plain text prompt
+- Example: args should be "Look at the GitHub issues for https://github.com/org/repo using the gh CLI. Pick one issue that is an easy fix, implement the fix, and open a PR."
+- The Claude Code subprocess runs in the ai-workspace directory and has access to git, gh CLI, and standard dev tools
+
 When the user asks you to do something regularly or on a schedule, use create_task.
 When the user asks about their tasks, use list_tasks.
 Always confirm task operations with natural language responses. When confirming a scheduled task, state the exact time in Pacific Time that it will run.
