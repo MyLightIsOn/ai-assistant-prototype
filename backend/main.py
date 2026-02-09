@@ -753,7 +753,7 @@ def update_task_in_db(task_id: str, task_data: dict):
 
 def delete_task_in_db(task_id: str):
     """
-    Delete task from database.
+    Delete task from database and corresponding calendar event.
 
     Args:
         task_id: Task ID to delete
@@ -762,6 +762,16 @@ def delete_task_in_db(task_id: str):
     try:
         task = db.query(Task).filter_by(id=task_id).first()
         if task:
+            # Delete calendar event if it exists
+            try:
+                calendar_sync = get_calendar_sync()
+                calendar_sync.delete_calendar_event(task)
+                logger.info(f"Deleted calendar event for task {task_id}")
+            except Exception as e:
+                # Log error but don't fail task deletion if calendar deletion fails
+                logger.warning(f"Failed to delete calendar event for task {task_id}: {e}")
+
+            # Delete task from database
             db.delete(task)
             db.commit()
     finally:

@@ -344,3 +344,67 @@ def test_delete_task_event_endpoint():
 
             assert response.status_code == 200
             assert mock_sync.delete_calendar_event.called
+
+
+def test_delete_task_in_db_removes_calendar_event():
+    """Test delete_task_in_db deletes both task and calendar event."""
+    from unittest.mock import Mock, patch, MagicMock
+    from main import delete_task_in_db
+
+    with patch('main.SessionLocal') as mock_session_local:
+        with patch('main.get_calendar_sync') as mock_get_sync:
+            # Setup mocks
+            mock_db = MagicMock()
+            mock_session_local.return_value = mock_db
+
+            mock_task = Mock()
+            mock_task.id = 'task_123'
+            mock_task.task_metadata = {'calendarEventId': 'event_456'}
+            mock_db.query().filter_by().first.return_value = mock_task
+
+            mock_sync = Mock()
+            mock_get_sync.return_value = mock_sync
+
+            # Execute
+            delete_task_in_db('task_123')
+
+            # Verify calendar event deletion was called
+            assert mock_sync.delete_calendar_event.called
+            mock_sync.delete_calendar_event.assert_called_once_with(mock_task)
+
+            # Verify task was deleted from database
+            assert mock_db.delete.called
+            mock_db.delete.assert_called_once_with(mock_task)
+            assert mock_db.commit.called
+
+
+def test_delete_task_in_db_handles_calendar_deletion_failure():
+    """Test delete_task_in_db continues even if calendar deletion fails."""
+    from unittest.mock import Mock, patch, MagicMock
+    from main import delete_task_in_db
+
+    with patch('main.SessionLocal') as mock_session_local:
+        with patch('main.get_calendar_sync') as mock_get_sync:
+            with patch('main.logger') as mock_logger:
+                # Setup mocks
+                mock_db = MagicMock()
+                mock_session_local.return_value = mock_db
+
+                mock_task = Mock()
+                mock_task.id = 'task_123'
+                mock_db.query().filter_by().first.return_value = mock_task
+
+                mock_sync = Mock()
+                mock_sync.delete_calendar_event.side_effect = Exception("Calendar API error")
+                mock_get_sync.return_value = mock_sync
+
+                # Execute
+                delete_task_in_db('task_123')
+
+                # Verify error was logged
+                assert mock_logger.warning.called
+
+                # Verify task was still deleted despite calendar error
+                assert mock_db.delete.called
+                mock_db.delete.assert_called_once_with(mock_task)
+                assert mock_db.commit.called
