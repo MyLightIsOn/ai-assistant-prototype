@@ -6,12 +6,19 @@ Used by both chat_executor.py (direct API) and mcp_task_server.py (MCP protocol)
 No MCP dependency - only SQLAlchemy and standard library.
 """
 
+import json
+import os
 from datetime import datetime, timezone
+from pathlib import Path
 
 from croniter import croniter
 from sqlalchemy.orm import Session
 
 from models import Task, TaskExecution, User
+
+# Resolve templates directory relative to the project root
+_PROJECT_ROOT = Path(__file__).resolve().parent.parent
+TEMPLATES_DIR = _PROJECT_ROOT / "ai-workspace" / "templates"
 
 
 def _sanitize_claude_args(task_args: str, description: str) -> str:
@@ -274,3 +281,164 @@ async def get_task_executions(db: Session, args: dict) -> str:
         )
 
     return f"Last {len(executions)} execution(s) for '{task.name}':\n" + "\n".join(exec_lines)
+
+
+def _load_template(template_id: str) -> dict:
+    """Load a template by ID from the templates directory. Returns dict or raises FileNotFoundError."""
+    template_path = TEMPLATES_DIR / f"{template_id}.json"
+    if not template_path.exists():
+        raise FileNotFoundError(f"Template '{template_id}' not found")
+    with open(template_path, "r") as f:
+        return json.load(f)
+
+
+def _build_issue_selection_block(params: dict) -> str:
+    """Build the issue selection section of the prompt based on parameters."""
+    issues = params.get("issues", "")
+    filter_val = params.get("filter", "label:bug")
+    max_issues = params.get("max_issues", 3)
+
+    if issues:
+        issue_nums = [n.strip() for n in str(issues).split(",") if n.strip()]
+        numbered = ", ".join(f"#{n}" for n in issue_nums)
+        return f"Fix these specific issues: {numbered}.\nUse `gh issue view <number>` to read each one."
+    else:
+        return (
+            f"Use `gh issue list --label \"{filter_val.replace('label:', '')}\" --limit {max_issues} --state open --json number,title,labels,assignees` "
+            f"to find up to {max_issues} open issues.\nSelect issues that look fixable by reading their descriptions."
+        )
+
+
+async def list_templates(db: Session, args: dict) -> str:
+    """List available task templates. Returns formatted listing."""
+    if not TEMPLATES_DIR.exists():
+        return "No templates directory found. No templates available."
+
+    template_files = sorted(TEMPLATES_DIR.glob("*.json"))
+    if not template_files:
+        return "No templates found."
+
+    lines = []
+    for tf in template_files:
+        try:
+            with open(tf, "r") as f:
+                tmpl = json.load(f)
+            param_parts = []
+            for pname, pdef in tmpl.get("parameters", {}).items():
+                req = "(required)" if pdef.get("required") else f"(default: {pdef.get('default', 'none')})"
+                param_parts.append(f"  - {pname}: {pdef.get('description', '')} {req}")
+            params_str = "\n".join(param_parts) if param_parts else "  (none)"
+            lines.append(
+                f"**{tmpl['id']}** - {tmpl['name']}\n"
+                f"  {tmpl.get('description', '')}\n"
+                f"  Default schedule: {tmpl.get('default_schedule', 'none')}\n"
+                f"  Parameters:\n{params_str}"
+            )
+        except (json.JSONDecodeError, KeyError):
+            continue
+
+    if not lines:
+        return "No valid templates found."
+
+    return f"Available templates ({len(lines)}):\n\n" + "\n\n".join(lines)
+
+
+async def create_task_from_template(db: Session, args: dict) -> str:
+    """Create a task from a template. Validates parameters, substitutes prompt, delegates to create_task."""
+    try:
+        template_id = args["template_id"]
+    except KeyError:
+        return "Error: Missing required parameter: template_id"
+
+    try:
+        tmpl = _load_template(template_id)
+    except FileNotFoundError:
+        available = [f.stem for f in TEMPLATES_DIR.glob("*.json")] if TEMPLATES_DIR.exists() else []
+        return f"Error: Template '{template_id}' not found. Available: {', '.join(available) or 'none'}"
+    except json.JSONDecodeError:
+        return f"Error: Template '{template_id}' has invalid JSON."
+
+    params = args.get("parameters", {})
+    param_defs = tmpl.get("parameters", {})
+
+    # Validate required parameters
+    for pname, pdef in param_defs.items():
+        if pdef.get("required") and pname not in params:
+            return f"Error: Missing required parameter '{pname}' for template '{template_id}'. Description: {pdef.get('description', '')}"
+
+    # Apply defaults for optional parameters
+    for pname, pdef in param_defs.items():
+        if pname not in params and "default" in pdef:
+            params[pname] = pdef["default"]
+
+    # Build dynamic blocks (only for templates with prompt_template)
+    if "prompt_template" in tmpl:
+        params["issue_selection_block"] = _build_issue_selection_block(params)
+
+    # Substitute variables into prompt template
+    prompt = tmpl.get("prompt_template", "")
+    for key, value in params.items():
+        prompt = prompt.replace(f"{{{key}}}", str(value))
+
+    # Build task creation args
+    task_name = args.get("name", f"{tmpl['name']} - {params.get('repo', template_id)}")
+    task_schedule = args.get("schedule", tmpl.get("default_schedule", "0 9 * * 1-5"))
+    task_priority = args.get("priority", tmpl.get("default_priority", "default"))
+
+    # Store template provenance in metadata (dict — JSONEncodedText auto-serializes)
+    task_metadata = {
+        "template_id": template_id,
+        "template_name": tmpl.get("name", ""),
+        "parameters": params,
+    }
+
+    # Merge multi-agent config from template into task metadata
+    if "agents" in tmpl:
+        agents_config = json.loads(json.dumps(tmpl["agents"]))  # Deep copy
+        # Substitute parameter values into agent instruction strings
+        for role_name, role_config in agents_config.get("roles", {}).items():
+            if "instructions" in role_config:
+                for key, value in params.items():
+                    role_config["instructions"] = role_config["instructions"].replace(
+                        f"{{{key}}}", str(value)
+                    )
+        task_metadata["agents"] = agents_config
+
+    # Merge email report config from template
+    if "email_report" in tmpl:
+        email_report = tmpl["email_report"].copy()
+        # Substitute parameter values (e.g., {recipient_email})
+        for key in list(email_report.keys()):
+            if isinstance(email_report[key], str):
+                for pname, pvalue in params.items():
+                    email_report[key] = email_report[key].replace(
+                        f"{{{pname}}}", str(pvalue)
+                    )
+        task_metadata["email_report"] = email_report
+
+    create_args = {
+        "name": task_name,
+        "description": tmpl.get("description", ""),
+        "command": tmpl.get("command", "claude"),
+        "args": prompt if prompt else tmpl.get("description", "Multi-agent task"),
+        "schedule": task_schedule,
+        "priority": task_priority,
+        "enabled": args.get("enabled", True),
+    }
+
+    # Delegate to create_task for all validation/sync logic
+    result = await create_task(db, create_args)
+
+    # If task was created successfully, update its metadata
+    if result.startswith("Success:"):
+        # Extract task ID from result message
+        try:
+            task_id = result.split("ID ")[1].split(".")[0]
+            task = db.query(Task).filter_by(id=task_id).first()
+            if task:
+                task.task_metadata = task_metadata
+                db.commit()
+        except (IndexError, Exception):
+            pass  # Non-critical: metadata is supplementary
+
+    return result
