@@ -66,6 +66,17 @@ async def create_task(db: Session, args: dict) -> str:
         except Exception:
             pass  # Non-critical: scheduler will pick it up on next sync/restart
 
+        # Sync with Google Calendar
+        try:
+            import requests
+            requests.post(
+                "http://localhost:8000/api/calendar/sync",
+                json={"taskId": task.id},
+                timeout=5,
+            )
+        except Exception:
+            pass  # Non-critical: calendar sync can be retried manually
+
         return f"Success: Created task '{task.name}' with ID {task.id}. Schedule: {schedule}"
 
     except KeyError as e:
@@ -125,6 +136,17 @@ async def update_task(db: Session, args: dict) -> str:
     task.updatedAt = int(datetime.now(timezone.utc).timestamp() * 1000)
     db.commit()
 
+    # Sync with Google Calendar
+    try:
+        import requests
+        requests.post(
+            "http://localhost:8000/api/calendar/sync",
+            json={"taskId": task_id},
+            timeout=5,
+        )
+    except Exception:
+        pass  # Non-critical: calendar sync can be retried manually
+
     return f"Success: Updated task '{task.name}' (ID: {task_id}). Updated fields: {', '.join(updated_fields)}"
 
 
@@ -137,6 +159,17 @@ async def delete_task(db: Session, args: dict) -> str:
         return f"Error: Task with ID '{task_id}' not found."
 
     task_name = task.name
+
+    # Delete Google Calendar event first
+    try:
+        import requests
+        requests.delete(
+            f"http://localhost:8000/api/calendar/sync/{task_id}",
+            timeout=5,
+        )
+    except Exception:
+        pass  # Non-critical: orphaned calendar events can be cleaned up manually
+
     db.delete(task)
     db.commit()
 
