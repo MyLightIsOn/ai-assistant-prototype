@@ -1035,11 +1035,6 @@ async def websocket_endpoint(websocket: WebSocket):
         raise
 
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")
-
-
 # ============================================================================
 # Digest Settings Endpoints
 # ============================================================================
@@ -1188,7 +1183,8 @@ class ChatSendRequest(BaseModel):
 async def send_chat_message(
     request: ChatSendRequest,
     background_tasks: BackgroundTasks,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    user: dict = Depends(get_current_user)
 ):
     """
     Send chat message and execute via Claude Code.
@@ -1373,3 +1369,12 @@ async def clear_chat_context(
             extra={"metadata": {"error": str(e)}}
         )
         raise HTTPException(status_code=500, detail=f"Failed to clear context: {str(e)}")
+
+
+# ============================================================================
+# Server Startup
+# ============================================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8000, log_level="info")

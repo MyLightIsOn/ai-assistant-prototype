@@ -12,13 +12,42 @@ import random
 import string
 import uuid
 
+import json
+
 from sqlalchemy import (
-    Column, String, DateTime, Boolean, Integer, BigInteger, ForeignKey, Text, JSON
+    Column, String, DateTime, Boolean, Integer, BigInteger, ForeignKey, Text
 )
+from sqlalchemy.types import TypeDecorator
 from sqlalchemy.orm import relationship
 from pydantic import BaseModel, Field, ConfigDict
 
 from database import Base
+
+
+class JSONEncodedText(TypeDecorator):
+    """Stores JSON as TEXT (compatible with Prisma's String? type).
+
+    Auto-serializes dicts/lists to JSON strings on write,
+    auto-deserializes JSON strings to dicts/lists on read.
+    Creates a TEXT column in SQLite (not JSON), so Prisma can read it.
+    """
+    impl = Text
+    cache_ok = True
+
+    def process_bind_param(self, value, dialect):
+        if value is not None:
+            if isinstance(value, str):
+                return value
+            return json.dumps(value)
+        return value
+
+    def process_result_value(self, value, dialect):
+        if value is not None:
+            try:
+                return json.loads(value)
+            except (json.JSONDecodeError, TypeError):
+                return value
+        return value
 
 
 # ============================================================================
@@ -134,7 +163,7 @@ class Task(Base):
     enabled = Column(Boolean, nullable=False, default=True)
     priority = Column(String, nullable=False, default="default")
     notifyOn = Column(String, nullable=False, default="completion,error")
-    task_metadata = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
+    task_metadata = Column("metadata", JSONEncodedText, nullable=True)  # Auto-serialized JSON, mapped from 'metadata' column
     createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
     updatedAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000), onupdate=lambda: int(time.time() * 1000))
     lastRun = Column(BigInteger, nullable=True)
@@ -174,7 +203,7 @@ class ActivityLog(Base):
     executionId = Column(String, ForeignKey("TaskExecution.id"), nullable=True)
     type = Column(String, nullable=False)  # "task_start", "task_complete", "notification_sent", "error"
     message = Column(String, nullable=False)
-    metadata_ = Column("metadata", JSON, nullable=True)  # JSON object, mapped from 'metadata' column
+    metadata_ = Column("metadata", JSONEncodedText, nullable=True)  # Auto-serialized JSON, mapped from 'metadata' column
     createdAt = Column(BigInteger, nullable=False, default=lambda: int(time.time() * 1000))
 
     # Relationships
