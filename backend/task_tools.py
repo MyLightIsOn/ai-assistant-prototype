@@ -14,6 +14,60 @@ from sqlalchemy.orm import Session
 from models import Task, TaskExecution, User
 
 
+def _sanitize_claude_args(task_args: str, description: str) -> str:
+    """
+    Sanitize args for claude command tasks.
+
+    The claude CLI args field is passed directly as a prompt to
+    `claude --dangerously-skip-permissions --print <args>`.
+    If the LLM generates CLI flags (e.g. --repo, --task), strip them
+    and rebuild as a plain text prompt.
+    """
+    if not task_args:
+        return description or ""
+
+    if task_args.strip().startswith("--"):
+        import shlex
+        try:
+            tokens = shlex.split(task_args)
+        except ValueError:
+            tokens = task_args.split()
+
+        urls = []
+        instructions = []
+        skip_next = False
+
+        for i, token in enumerate(tokens):
+            if skip_next:
+                skip_next = False
+                continue
+            if token.startswith("--"):
+                flag_name = token.lstrip("-")
+                if i + 1 < len(tokens) and not tokens[i + 1].startswith("--"):
+                    value = tokens[i + 1]
+                    skip_next = True
+                    if flag_name in ("repo", "repository", "url", "project"):
+                        urls.append(value)
+                    elif flag_name in ("task", "prompt", "instructions", "message"):
+                        instructions.append(value)
+                    else:
+                        instructions.append(f"{flag_name}: {value}")
+            else:
+                instructions.append(token)
+
+        parts = []
+        if urls:
+            parts.append(f"Work on the repository at {', '.join(urls)}.")
+        if instructions:
+            parts.append(" ".join(instructions))
+        elif description:
+            parts.append(description)
+
+        return " ".join(parts) if parts else description or ""
+
+    return task_args
+
+
 async def create_task(db: Session, args: dict) -> str:
     """Create a new scheduled task. Returns result message."""
     try:
@@ -24,6 +78,10 @@ async def create_task(db: Session, args: dict) -> str:
         schedule = args["schedule"]
         priority = args.get("priority", "default")
         enabled = args.get("enabled", True)
+
+        # Sanitize args for claude commands
+        if command == "claude":
+            task_args = _sanitize_claude_args(task_args, description)
 
         # Get default user
         user = db.query(User).first()
