@@ -21,6 +21,8 @@ from task_tools import (
     delete_task,
     execute_task,
     get_task_executions,
+    list_templates,
+    create_task_from_template,
 )
 from logger import get_logger
 
@@ -103,6 +105,33 @@ TOOLS = [
             "required": ["task_id"],
         },
     },
+    {
+        "name": "list_templates",
+        "description": "List available task templates with their parameters and descriptions",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "create_task_from_template",
+        "description": "Create a scheduled task from a reusable template",
+        "input_schema": {
+            "type": "object",
+            "properties": {
+                "template_id": {"type": "string", "description": "Template ID (e.g., 'dev-fix')"},
+                "name": {"type": "string", "description": "Task name (optional, auto-generated from template if omitted)"},
+                "schedule": {"type": "string", "description": "Cron schedule (e.g., '0 9 * * 1-5'). Uses template default if omitted."},
+                "priority": {"type": "string", "enum": ["low", "default", "high", "urgent"], "description": "Task priority"},
+                "enabled": {"type": "boolean", "default": True},
+                "parameters": {
+                    "type": "object",
+                    "description": "Template-specific parameters (e.g., {repo: 'owner/repo', issues: '42,57', filter: 'label:bug', max_issues: 3, branch_prefix: 'auto-fix'})",
+                },
+            },
+            "required": ["template_id", "parameters"],
+        },
+    },
 ]
 
 # Map tool names to handler functions
@@ -113,6 +142,8 @@ TOOL_HANDLERS = {
     "delete_task": delete_task,
     "execute_task": execute_task,
     "get_task_executions": get_task_executions,
+    "list_templates": list_templates,
+    "create_task_from_template": create_task_from_template,
 }
 
 

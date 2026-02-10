@@ -82,6 +82,52 @@ async def _execute_multi_agent(
                     output_parts.append(f"Achievements: {', '.join(synthesis['key_achievements'])}")
 
             output = "\n".join(output_parts)
+
+            # Send email report if configured in task metadata
+            if task.task_metadata and task.task_metadata.get("email_report", {}).get("enabled"):
+                try:
+                    email_config = task.task_metadata["email_report"]
+                    recipient = email_config.get("recipient_email")
+                    formatter_agent = email_config.get("formatter_agent", "formatter")
+                    workspace_path = Path(result["workspace"])
+                    formatter_output_path = workspace_path / "agents" / formatter_agent / "output.json"
+
+                    if formatter_output_path.exists():
+                        with open(formatter_output_path) as f:
+                            formatter_output = json.load(f)
+                        subject = formatter_output.get("subject", f"AI Report - {datetime.now().strftime('%Y-%m-%d')}")
+                        body_html = formatter_output.get("html", "")
+                        body_text = formatter_output.get("text", "")
+                        if body_html and recipient:
+                            gmail_sender = get_gmail_sender()
+                            gmail_sender.send_email(
+                                to=recipient,
+                                subject=subject,
+                                body_html=body_html,
+                                body_text=body_text,
+                            )
+                            logger.info(f"Sent email report for task {task.id} to {recipient}")
+                    else:
+                        logger.warning(f"No formatter output at {formatter_output_path}")
+                        # Fallback: render from evaluator data if available
+                        evaluator_output_path = workspace_path / "agents" / "evaluator" / "output.json"
+                        if evaluator_output_path.exists() and recipient:
+                            with open(evaluator_output_path) as f:
+                                evaluator_data = json.load(f)
+                            from email_templates import render_ai_news_email
+                            body_html, body_text = render_ai_news_email(evaluator_data)
+                            if body_html:
+                                gmail_sender = get_gmail_sender()
+                                gmail_sender.send_email(
+                                    to=recipient,
+                                    subject=f"AI Report - {datetime.now().strftime('%Y-%m-%d')}",
+                                    body_html=body_html,
+                                    body_text=body_text,
+                                )
+                                logger.info(f"Sent fallback email report for task {task.id} to {recipient}")
+                except Exception as e:
+                    logger.error(f"Failed to send email report for task {task.id}: {e}")
+
         else:
             # Failed
             exit_code = 1
