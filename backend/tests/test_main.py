@@ -38,8 +38,8 @@ def test_health_endpoint():
     assert data["status"] in ["healthy", "degraded"]
     assert "service" in data
     assert data["service"] == "ai-assistant-backend"
-    # Verify status matches database state
-    if data["database"] == "connected":
+    # Verify status matches database and scheduler state
+    if data["database"] == "connected" and data["scheduler"] == "running":
         assert data["status"] == "healthy"
     else:
         assert data["status"] == "degraded"

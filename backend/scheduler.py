@@ -257,103 +257,17 @@ class TaskScheduler:
         """
         Execute a single task.
 
+        Delegates to executor.execute_task which handles both single-agent and
+        multi-agent tasks, including email sending and notifications.
+
         Args:
             task_id: The ID of the task to execute
         """
+        from executor import execute_task as executor_execute_task
+
         db = self.SessionLocal()
         try:
-            # Get task from database
-            task = db.query(Task).filter_by(id=task_id).first()
-            if not task:
-                logger.error(f"Task {task_id} not found")
-                return
-
-            # Create execution record
-            execution = TaskExecution(
-                taskId=task_id,
-                status="running"
-            )
-            db.add(execution)
-            db.commit()
-            db.refresh(execution)
-
-            # Log task start
-            log = ActivityLog(
-                executionId=execution.id,
-                type="task_start",
-                message=f"Task '{task.name}' started",
-                metadata_={
-                    "task_id": task_id,
-                    "command": task.command,
-                    "args": task.args
-                }
-            )
-            db.add(log)
-            db.commit()
-
-            logger.info(f"Executing task {task_id}: {task.name}")
-
-            # Execute the task
-            start_time = datetime.now(timezone.utc)
-            try:
-                output, exit_code = await execute_claude_command(task.command, task.args, task.description)
-
-                # Update execution record
-                end_time = datetime.now(timezone.utc)
-                execution.status = "completed" if exit_code == 0 else "failed"
-                execution.completedAt = int(end_time.timestamp() * 1000)
-                execution.output = output
-                execution.duration = int((end_time - start_time).total_seconds() * 1000)
-
-                # Update task lastRun
-                task.lastRun = int(start_time.timestamp() * 1000)
-
-                db.commit()
-
-                # Log completion
-                log = ActivityLog(
-                    executionId=execution.id,
-                    type="task_complete" if exit_code == 0 else "task_error",
-                    message=f"Task '{task.name}' {'completed' if exit_code == 0 else 'failed'}",
-                    metadata_={
-                        "exit_code": exit_code,
-                        "duration_ms": execution.duration
-                    }
-                )
-                db.add(log)
-                db.commit()
-
-                logger.info(f"Task {task_id} completed with exit code {exit_code}")
-
-            except Exception as e:
-                # Handle execution error
-                end_time = datetime.now(timezone.utc)
-                execution.status = "failed"
-                execution.completedAt = int(end_time.timestamp() * 1000)
-                execution.output = str(e)
-                execution.duration = int((end_time - start_time).total_seconds() * 1000)
-
-                # Update task lastRun
-                task.lastRun = int(start_time.timestamp() * 1000)
-
-                db.commit()
-
-                # Log error
-                log = ActivityLog(
-                    executionId=execution.id,
-                    type="error",
-                    message=f"Task '{task.name}' failed with error: {str(e)}",
-                    metadata_={
-                        "error": str(e),
-                        "error_type": type(e).__name__
-                    }
-                )
-                db.add(log)
-                db.commit()
-
-                logger.error(f"Task {task_id} failed: {e}")
-                raise
-
+            await executor_execute_task(task_id, db, broadcast_callback=None)
         finally:
             db.close()
 
