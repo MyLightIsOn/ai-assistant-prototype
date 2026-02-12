@@ -12,7 +12,8 @@ export default auth((req) => {
   // Public static assets
   const isPublicAsset = pathname.startsWith("/_next") ||
                         pathname.startsWith("/favicon.ico") ||
-                        pathname.startsWith("/public");
+                        pathname.startsWith("/public") ||
+                        pathname === "/manifest.json";
 
   if (isPublicRoute || isPublicAsset) {
     return NextResponse.next();
