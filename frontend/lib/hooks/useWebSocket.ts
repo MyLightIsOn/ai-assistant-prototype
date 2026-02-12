@@ -2,6 +2,7 @@
  * Custom React hook for WebSocket connection management.
  *
  * Features:
+ * - Shared singleton connection across all components
  * - Automatic connection/disconnection lifecycle
  * - Connection state management
  * - Message subscription
@@ -11,8 +12,7 @@
 import { useEffect, useState, useCallback, useRef } from 'react';
 import { useSession } from 'next-auth/react';
 import {
-  WebSocketClient,
-  createWebSocketClient,
+  getSharedWebSocketClient,
   ConnectionState,
   WebSocketMessageType,
   MessageHandler,
@@ -40,6 +40,7 @@ interface UseWebSocketReturn {
 
 /**
  * Hook to manage WebSocket connection with authentication.
+ * All components share a single WebSocket connection via singleton.
  *
  * @param options - Configuration options
  * @returns WebSocket connection state and methods
@@ -48,43 +49,41 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
   const { autoConnect = true, onMessage } = options;
   const { data: session } = useSession();
   const [state, setState] = useState<ConnectionState>('disconnected');
-  const clientRef = useRef<WebSocketClient | null>(null);
-  const sessionTokenRef = useRef<string | null>(null);
+  const clientRef = useRef<ReturnType<typeof getSharedWebSocketClient> | null>(null);
 
-  // Initialize WebSocket client when session is available
+  // Stable dependency: only re-run when user identity actually changes
+  const userId = session?.user?.id;
+
+  // Connect the shared client when session is available
   useEffect(() => {
-    // Don't create client if no session
-    if (!session?.user) {
+    if (!userId) {
       return;
     }
 
-    // Extract session token from session
-    // In NextAuth v5 with JWT strategy, we can use the session directly
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sessionToken = (session as any)?.accessToken || 'session-active';
-    sessionTokenRef.current = sessionToken;
 
-    // Create WebSocket client
-    const client = createWebSocketClient(sessionToken);
+    // Get shared client (creates new one only if token changed)
+    const client = getSharedWebSocketClient(sessionToken);
+    clientRef.current = client;
 
-    // Update state when connection state changes
-    client.subscribe('*', () => {
+    // Sync state from client
+    setState(client.getState());
+
+    // Subscribe to state changes
+    const unsubscribe = client.subscribe('*', () => {
       setState(client.getState());
     });
 
-    clientRef.current = client;
-
-    // Auto-connect if enabled
-    if (autoConnect) {
+    // Auto-connect if not already connected
+    if (autoConnect && !client.isConnected()) {
       client.connect();
     }
 
-    // Cleanup on unmount
     return () => {
-      client.disconnect();
-      clientRef.current = null;
+      unsubscribe();
     };
-  }, [session, autoConnect]);
+  }, [userId, autoConnect]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Subscribe to all messages if onMessage provided
   useEffect(() => {
@@ -95,27 +94,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
     const unsubscribe = clientRef.current.subscribe('*', onMessage);
     return unsubscribe;
   }, [onMessage]);
-
-  // Update state when client state changes
-  useEffect(() => {
-    if (!clientRef.current) {
-      return;
-    }
-
-    // Poll the state to keep it synchronized
-    const interval = setInterval(() => {
-      if (clientRef.current) {
-        const currentState = clientRef.current.getState();
-        if (currentState !== state) {
-          setState(currentState);
-        }
-      }
-    }, 500);
-
-    return () => {
-      clearInterval(interval);
-    };
-  }, [state]);
 
   const connect = useCallback(() => {
     clientRef.current?.connect();
@@ -135,7 +113,6 @@ export function useWebSocket(options: UseWebSocketOptions = {}): UseWebSocketRet
 
   const subscribe = useCallback((type: WebSocketMessageType | '*', handler: MessageHandler) => {
     if (!clientRef.current) {
-      // Return no-op unsubscribe function
       return () => {};
     }
     return clientRef.current.subscribe(type, handler);

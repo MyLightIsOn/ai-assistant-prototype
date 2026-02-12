@@ -80,7 +80,7 @@ export class WebSocketClient {
    * Connect to WebSocket server.
    */
   connect(): void {
-    if (this.ws?.readyState === WebSocket.OPEN) {
+    if (this.ws?.readyState === WebSocket.OPEN || this.ws?.readyState === WebSocket.CONNECTING) {
       return;
     }
 
@@ -294,4 +294,43 @@ export function createWebSocketClient(sessionToken?: string): WebSocketClient {
     initialReconnectDelay: 1000,
     maxReconnectDelay: 30000,
   });
+}
+
+// Singleton instance shared across all components
+let sharedClient: WebSocketClient | null = null;
+let sharedClientToken: string | null = null;
+
+/**
+ * Get or create a shared WebSocket client singleton.
+ * All components share the same connection. If the session token changes
+ * (e.g. re-login), the old client is disconnected and a new one is created.
+ */
+export function getSharedWebSocketClient(sessionToken?: string): WebSocketClient {
+  const token = sessionToken ?? null;
+
+  // Return existing client if token hasn't changed
+  if (sharedClient && sharedClientToken === token) {
+    return sharedClient;
+  }
+
+  // Token changed — tear down old client
+  if (sharedClient) {
+    sharedClient.disconnect();
+  }
+
+  sharedClient = createWebSocketClient(sessionToken);
+  sharedClientToken = token;
+  return sharedClient;
+}
+
+/**
+ * Disconnect and discard the shared WebSocket client.
+ * Called on logout so a fresh connection is created on next login.
+ */
+export function disconnectSharedWebSocketClient(): void {
+  if (sharedClient) {
+    sharedClient.disconnect();
+    sharedClient = null;
+    sharedClientToken = null;
+  }
 }
