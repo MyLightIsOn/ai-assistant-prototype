@@ -13,7 +13,7 @@ import {
 import { LogOut, User } from "lucide-react";
 
 export function Header() {
-  const { data: session } = useSession();
+  const { data: session, status } = useSession();
 
   const getInitials = (email: string) => {
     return email
@@ -31,6 +31,13 @@ export function Header() {
         <h2 className="text-lg font-semibold">Welcome back!</h2>
       </div>
       <div className="flex items-center gap-4">
+        {status === "loading" ? (
+          <div className="flex items-center gap-2 rounded-lg p-2">
+            <Avatar className="h-8 w-8">
+              <AvatarFallback>U</AvatarFallback>
+            </Avatar>
+          </div>
+        ) : (
         <DropdownMenu>
           <DropdownMenuTrigger asChild>
             <button className="flex items-center gap-2 rounded-lg p-2 transition-colors hover:bg-secondary">
@@ -61,6 +68,7 @@ export function Header() {
             </DropdownMenuItem>
           </DropdownMenuContent>
         </DropdownMenu>
+        )}
       </div>
     </header>
   );
