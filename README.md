@@ -124,7 +124,7 @@ All times are converted to Pacific Time (America/Los_Angeles).
 - **Network**: Tailscale for secure remote access
 - **Process Management**: PM2 for service orchestration
 
-See [Architecture Documentation](docs/ARCHITECTURE.md) for detailed technical design.
+See [Architecture Documentation](docs/PROJECT_STRUCTURE.md) for detailed technical design.
 
 ## AI Workspace Structure
 
