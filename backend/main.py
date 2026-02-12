@@ -576,6 +576,122 @@ async def validate_task_schedule(
     }
 
 
+# ============================================================================
+# Task CRUD REST Endpoints (for CLI chat integration via curl)
+# ============================================================================
+
+from task_tools import (
+    list_tasks as _list_tasks_handler,
+    create_task as _create_task_handler,
+    update_task as _update_task_handler,
+    delete_task as _delete_task_handler,
+    get_task_executions as _get_task_executions_handler,
+    list_templates as _list_templates_handler,
+    create_task_from_template as _create_task_from_template_handler,
+)
+
+
+@app.get("/api/tasks")
+async def list_tasks_endpoint(
+    filter: str = Query(default="all"),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+):
+    """List tasks with optional filtering."""
+    result = await _list_tasks_handler(db, {"filter": filter, "limit": limit})
+    return {"result": result}
+
+
+@app.post("/api/tasks")
+async def create_task_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create a new task."""
+    body = await request.json()
+    result = await _create_task_handler(db, body)
+    return {"result": result}
+
+
+@app.get("/api/tasks/{task_id}")
+async def get_task_detail_endpoint(
+    task_id: str,
+    db: Session = Depends(get_db),
+):
+    """Get task details by ID."""
+    task = db.query(Task).filter_by(id=task_id).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    return {
+        "id": task.id,
+        "name": task.name,
+        "description": task.description,
+        "command": task.command,
+        "args": task.args,
+        "schedule": task.schedule,
+        "priority": task.priority,
+        "enabled": task.enabled,
+        "metadata": task.task_metadata,
+        "createdAt": task.createdAt,
+        "updatedAt": task.updatedAt,
+        "lastRun": task.lastRun,
+        "nextRun": task.nextRun,
+    }
+
+
+@app.put("/api/tasks/{task_id}")
+async def update_task_endpoint(
+    task_id: str,
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Update an existing task."""
+    body = await request.json()
+    result = await _update_task_handler(db, {"task_id": task_id, "updates": body})
+    return {"result": result}
+
+
+@app.delete("/api/tasks/{task_id}")
+async def delete_task_endpoint(
+    task_id: str,
+    db: Session = Depends(get_db),
+):
+    """Delete a task."""
+    result = await _delete_task_handler(db, {"task_id": task_id})
+    return {"result": result}
+
+
+@app.get("/api/tasks/{task_id}/executions")
+async def get_task_executions_endpoint(
+    task_id: str,
+    limit: int = Query(default=10, ge=1, le=100),
+    db: Session = Depends(get_db),
+):
+    """Get execution history for a task."""
+    result = await _get_task_executions_handler(db, {"task_id": task_id, "limit": limit})
+    return {"result": result}
+
+
+@app.get("/api/templates")
+async def list_templates_endpoint(
+    db: Session = Depends(get_db),
+):
+    """List available task templates."""
+    result = await _list_templates_handler(db, {})
+    return {"result": result}
+
+
+@app.post("/api/tasks/from-template")
+async def create_from_template_endpoint(
+    request: Request,
+    db: Session = Depends(get_db),
+):
+    """Create a task from a template."""
+    body = await request.json()
+    result = await _create_task_from_template_handler(db, body)
+    return {"result": result}
+
+
 def get_task_from_db(task_id: str) -> Optional[Task]:
     """
     Get task from database by ID.
@@ -1169,7 +1285,7 @@ async def send_test_digest(
 # Chat Endpoints
 # ============================================================================
 
-from chat_executor import execute_chat_message
+from chat_executor_cli import execute_chat_message
 from models import ChatMessage as ChatMessageModel, ChatAttachment as ChatAttachmentModel
 
 
@@ -1253,7 +1369,7 @@ async def execute_chat_message_endpoint(
     Returns immediately while execution happens in background.
     """
     try:
-        from chat_executor import execute_chat_message
+        from chat_executor_cli import execute_chat_message
 
         # Trigger async execution
         background_tasks.add_task(
