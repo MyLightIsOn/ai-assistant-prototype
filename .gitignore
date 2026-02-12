@@ -112,3 +112,20 @@ worktrees/
 docs/do_not_commit/
 DIAGNOSTIC_REPORT.txt
 ROOT_CAUSE_ANALYSIS.md
+
+# Test artifacts (screenshots, test docs, test databases)
+# Prevent test screenshots and documentation from being committed
+*-screenshot.png
+*-working.png
+*-demo.png
+*-after-*.png
+*-test-*.png
+*-error-*.png
+*-state.png
+*-created*.png
+*-execution*.png
+*-network-requests.log
+TEST_*.md
+test_*.json
+*-task.json
+create_test_*.py
