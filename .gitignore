@@ -107,8 +107,8 @@ google_user_credentials.json
 .worktrees/
 worktrees/
 
-# Documentation (contains private architecture and implementation details)
-# Repository is PUBLIC - docs must remain private until verified and production-ready
-docs/
+# Documentation - public docs are allowed, but keep sensitive planning docs private
+# Repository is PUBLIC - implementation plans and code reviews must not be committed
+docs/do_not_commit/
 DIAGNOSTIC_REPORT.txt
 ROOT_CAUSE_ANALYSIS.md
