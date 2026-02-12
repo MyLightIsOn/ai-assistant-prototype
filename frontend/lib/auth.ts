@@ -57,9 +57,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
         token.email = user.email;
         token.name = user.name;
       }
+
+      // Revalidate user against DB every 5 minutes to catch stale JWTs
+      const now = Math.floor(Date.now() / 1000);
+      const lastVerified = (token.lastVerified as number) || 0;
+      if (now - lastVerified > 300) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.id as string },
+          select: { id: true, email: true, name: true },
+        });
+        if (!dbUser) {
+          // User no longer exists with this ID — invalidate token
+          return { ...token, id: null };
+        }
+        // Sync any DB-side changes (e.g. name/email updates)
+        token.email = dbUser.email;
+        token.name = dbUser.name;
+        token.lastVerified = now;
+      }
+
       return token;
     },
     async session({ session, token }) {
+      if (!token.id) {
+        // Token was invalidated — force re-login
+        return { ...session, user: undefined } as typeof session;
+      }
       if (token && session.user) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
