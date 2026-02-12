@@ -8,6 +8,7 @@ import json
 import os
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
+import pytz
 from pathlib import Path
 from typing import List, Dict, Any, Optional
 
@@ -1029,6 +1030,149 @@ async def process_calendar_change(notification: dict):
         logger.error(f"Error processing calendar change: {e}")
 
 
+def _calendar_event_to_cron(event: dict) -> str:
+    """
+    Convert Google Calendar event to cron schedule.
+
+    Supports both one-time and recurring events.
+    Returns cron in format: "minute hour day month day_of_week"
+    All times are in America/Los_Angeles (Pacific Time).
+
+    Args:
+        event: Google Calendar event dict with 'start' and optional 'recurrence'
+
+    Returns:
+        Cron schedule string
+    """
+    try:
+        # Check if recurring
+        if 'recurrence' in event and event['recurrence']:
+            return _convert_recurrence_to_cron(event)
+
+        # One-time event
+        start = event.get('start', {})
+
+        # Handle all-day events
+        if 'date' in start:
+            # All-day event - schedule for midnight
+            date_str = start['date']  # Format: 'YYYY-MM-DD'
+            dt = datetime.strptime(date_str, '%Y-%m-%d')
+            return f"0 0 {dt.day} {dt.month} *"
+
+        # Timed event
+        if 'dateTime' in start:
+            # Parse RFC3339 datetime
+            dt_str = start['dateTime']  # Format: '2024-01-15T09:00:00-08:00'
+            dt = datetime.fromisoformat(dt_str)
+
+            # Convert to Pacific Time
+            pst = pytz.timezone('America/Los_Angeles')
+            if dt.tzinfo:
+                dt = dt.astimezone(pst)
+
+            # One-time: include specific day and month
+            return f"{dt.minute} {dt.hour} {dt.day} {dt.month} *"
+
+        # Fallback
+        logger.warning(f"Could not parse event start time: {event.get('summary', 'Unknown')}")
+        return "0 0 * * *"
+
+    except Exception as e:
+        logger.error(f"Error converting event to cron: {e}")
+        return "0 0 * * *"
+
+
+def _convert_recurrence_to_cron(event: dict) -> str:
+    """
+    Convert RRULE recurrence to cron schedule.
+
+    Handles common recurrence patterns:
+    - FREQ=DAILY
+    - FREQ=WEEKLY (with BYDAY)
+    - FREQ=MONTHLY
+    - FREQ=YEARLY
+
+    Args:
+        event: Google Calendar event with 'recurrence' field
+
+    Returns:
+        Cron schedule string
+    """
+    try:
+        recurrence = event.get('recurrence', [])
+        if not recurrence:
+            return "0 0 * * *"
+
+        # Parse RRULE (e.g., "RRULE:FREQ=DAILY;INTERVAL=1")
+        rrule_str = recurrence[0]
+
+        # Get start time for minute/hour
+        start = event.get('start', {})
+        dt_str = start.get('dateTime', start.get('date'))
+
+        if not dt_str:
+            return "0 0 * * *"
+
+        # Parse start time
+        pst = pytz.timezone('America/Los_Angeles')
+        if 'T' in dt_str:
+            dt = datetime.fromisoformat(dt_str)
+            if dt.tzinfo:
+                dt = dt.astimezone(pst)
+            minute = dt.minute
+            hour = dt.hour
+            day = dt.day
+            month = dt.month
+        else:
+            # All-day event
+            dt = datetime.strptime(dt_str, '%Y-%m-%d')
+            minute = 0
+            hour = 0
+            day = dt.day
+            month = dt.month
+
+        # Parse frequency
+        if 'FREQ=DAILY' in rrule_str:
+            return f"{minute} {hour} * * *"
+
+        elif 'FREQ=WEEKLY' in rrule_str:
+            # Parse BYDAY if present (e.g., BYDAY=MO,WE,FR)
+            if 'BYDAY=' in rrule_str:
+                # Extract day codes
+                byday_part = rrule_str.split('BYDAY=')[1].split(';')[0]
+                day_codes = byday_part.split(',')
+
+                # Map to cron day numbers (0 = Sunday, 1 = Monday, ...)
+                day_map = {
+                    'SU': '0', 'MO': '1', 'TU': '2', 'WE': '3',
+                    'TH': '4', 'FR': '5', 'SA': '6'
+                }
+                cron_days = [day_map.get(code, '1') for code in day_codes]
+                days_str = ','.join(cron_days)
+                return f"{minute} {hour} * * {days_str}"
+            else:
+                # Weekly on same day of week as start date
+                weekday = dt.weekday()  # Monday=0, Sunday=6
+                cron_day = (weekday + 1) % 7  # Convert to cron format (Sunday=0)
+                return f"{minute} {hour} * * {cron_day}"
+
+        elif 'FREQ=MONTHLY' in rrule_str:
+            # Monthly on same day of month
+            return f"{minute} {hour} {day} * *"
+
+        elif 'FREQ=YEARLY' in rrule_str:
+            # Yearly on same date
+            return f"{minute} {hour} {day} {month} *"
+
+        # Unknown frequency - default to daily
+        logger.warning(f"Unknown recurrence frequency in: {rrule_str}")
+        return f"{minute} {hour} * * *"
+
+    except Exception as e:
+        logger.error(f"Error parsing recurrence: {e}")
+        return "0 0 * * *"
+
+
 async def create_or_update_task_from_event(event: dict):
     """Create or update task from Calendar event."""
     try:
@@ -1036,7 +1180,7 @@ async def create_or_update_task_from_event(event: dict):
         task_data = {
             'name': event['summary'],
             'description': event.get('description', ''),
-            'schedule': '0 0 * * *',  # TODO: Convert event to cron
+            'schedule': _calendar_event_to_cron(event),
             'priority': _get_priority_from_color(event.get('colorId')),
             'enabled': True,
             'notifyOn': 'completion,error'
