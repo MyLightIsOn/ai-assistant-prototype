@@ -62,13 +62,17 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       const now = Math.floor(Date.now() / 1000);
       const lastVerified = (token.lastVerified as number) || 0;
       if (now - lastVerified > 300) {
+        if (!token.id) {
+          return token;
+        }
         const dbUser = await prisma.user.findUnique({
           where: { id: token.id as string },
           select: { id: true, email: true, name: true },
         });
         if (!dbUser) {
-          // User no longer exists with this ID — invalidate token
-          return { ...token, id: null };
+          // User no longer exists with this ID — clear the id to invalidate
+          const { id, ...tokenWithoutId } = token;
+          return tokenWithoutId as typeof token;
         }
         // Sync any DB-side changes (e.g. name/email updates)
         token.email = dbUser.email;
@@ -79,11 +83,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
       return token;
     },
     async session({ session, token }) {
-      if (!token.id) {
-        // Token was invalidated — force re-login
-        return { ...session, user: undefined } as typeof session;
-      }
-      if (token && session.user) {
+      if (token && session.user && token.id) {
         session.user.id = token.id as string;
         session.user.email = token.email as string;
         session.user.name = token.name as string | null;
