@@ -61,10 +61,12 @@ async def execute_claude_task(
         logger.info(f"Starting Claude task: {task_description[:100]}...")
         logger.debug(f"Working directory: {workspace_path}")
 
-        # Build clean environment without ANTHROPIC_API_KEY
-        # so Claude CLI uses the subscription instead of the API key
+        # Build clean environment:
+        # - Remove ANTHROPIC_API_KEY so Claude CLI uses subscription instead of API key
+        # - Remove CLAUDECODE so nested session check doesn't block subprocess startup
         import os
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("ANTHROPIC_API_KEY", "CLAUDECODE")}
 
         # Spawn subprocess with claude --dangerously-skip-permissions --print command and task as argument
         process = await asyncio.create_subprocess_exec(
