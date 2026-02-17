@@ -195,6 +195,17 @@ async def update_task(db: Session, args: dict) -> str:
             setattr(task, field, value)
             updated_fields.append(field)
 
+    # Handle metadata separately: merge with existing to preserve fields like calendarEventId
+    if "metadata" in updates:
+        import json as _json
+        new_meta = updates["metadata"]
+        if isinstance(new_meta, str):
+            new_meta = _json.loads(new_meta)
+        existing = task.task_metadata or {}
+        existing.update(new_meta)
+        task.task_metadata = existing
+        updated_fields.append("metadata")
+
     if not updated_fields:
         return "Error: No valid fields to update."
 
