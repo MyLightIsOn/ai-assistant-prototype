@@ -14,6 +14,9 @@ import uuid
 from datetime import datetime, timezone, timedelta
 from typing import Optional
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.jobstores.sqlalchemy import SQLAlchemyJobStore
 from apscheduler.triggers.cron import CronTrigger
