@@ -403,8 +403,58 @@ async def create_task_from_template(db: Session, args: dict) -> str:
         "parameters": params,
     }
 
-    # Merge multi-agent config from template into task metadata
-    if "agents" in tmpl:
+    # Handle dynamic agent pipeline (source-based, e.g. custom-research template)
+    if "dynamic_agents" in tmpl:
+        dyn = tmpl["dynamic_agents"]
+        source_param = dyn.get("source_param", "sources")
+        sources_str = str(params.get(source_param, ""))
+        selected_sources = [s.strip() for s in sources_str.split(",") if s.strip()]
+        agent_prefix = dyn.get("agent_prefix", "research_")
+
+        source_agents_map = dyn.get("source_agents", {})
+        suffix_agent_names = dyn.get("suffix_agents", [])
+        suffix_roles_map = dyn.get("suffix_roles", {})
+
+        # Build sequence: prefix+source for each valid selected source, then suffix agents
+        valid_selected = [s for s in selected_sources if s in source_agents_map]
+        if not valid_selected:
+            return (
+                f"Error: No valid sources found in '{sources_str}'. "
+                f"Valid sources: {', '.join(source_agents_map.keys())}"
+            )
+        sequence = [f"{agent_prefix}{s}" for s in valid_selected]
+        sequence.extend(suffix_agent_names)
+
+        # Build roles dict with parameter substitution
+        roles = {}
+        for source in valid_selected:
+            agent_key = f"{agent_prefix}{source}"
+            role_config = json.loads(json.dumps(source_agents_map[source]))  # deep copy
+            if "instructions" in role_config:
+                for key, value in params.items():
+                    role_config["instructions"] = role_config["instructions"].replace(
+                        f"{{{key}}}", str(value)
+                    )
+            roles[agent_key] = role_config
+
+        for suffix_key, suffix_config in suffix_roles_map.items():
+            role_config = json.loads(json.dumps(suffix_config))  # deep copy
+            if "instructions" in role_config:
+                for key, value in params.items():
+                    role_config["instructions"] = role_config["instructions"].replace(
+                        f"{{{key}}}", str(value)
+                    )
+            roles[suffix_key] = role_config
+
+        task_metadata["agents"] = {
+            "enabled": True,
+            "sequence": sequence,
+            "synthesize": dyn.get("synthesize", False),
+            "roles": roles,
+        }
+
+    # Merge multi-agent config from template into task metadata (static pipeline)
+    elif "agents" in tmpl:
         agents_config = json.loads(json.dumps(tmpl["agents"]))  # Deep copy
         # Substitute parameter values into agent instruction strings
         for role_name, role_config in agents_config.get("roles", {}).items():

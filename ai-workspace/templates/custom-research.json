@@ -1,0 +1,76 @@
+{
+  "id": "custom-research",
+  "name": "Custom Research",
+  "description": "Research any topic across configurable sources (news, papers, repos, blogs, social) and deliver a formatted HTML email report.",
+  "command": "claude",
+  "default_schedule": null,
+  "default_priority": "default",
+  "parameters": {
+    "topic": {
+      "type": "string",
+      "description": "Topic to research (e.g., 'prompt engineering', 'Rust async runtimes')",
+      "required": true
+    },
+    "sources": {
+      "type": "string",
+      "description": "Comma-separated source types: news, papers, repos, blogs, social",
+      "required": false,
+      "default": "news,papers,repos,blogs,social"
+    },
+    "recipient_email": {
+      "type": "string",
+      "description": "Email address to receive the report",
+      "required": false,
+      "default": "thelawrencemoore@gmail.com"
+    },
+    "max_items_per_source": {
+      "type": "integer",
+      "description": "Maximum number of items per source section",
+      "required": false,
+      "default": 5
+    }
+  },
+  "email_report": {
+    "enabled": true,
+    "recipient_email": "{recipient_email}",
+    "formatter_agent": "formatter"
+  },
+  "dynamic_agents": {
+    "source_param": "sources",
+    "agent_prefix": "research_",
+    "suffix_agents": ["evaluator", "formatter"],
+    "synthesize": false,
+    "source_agents": {
+      "news": {
+        "type": "research",
+        "instructions": "Search for the latest news articles about: {topic}\n\nFocus on:\n- Breaking news and major announcements from the past 7 days\n- Coverage from reputable news sites (TechCrunch, Wired, Ars Technica, Reuters, etc.)\n- Industry developments, product launches, company news related to this topic\n\nFor each item provide:\n- title: Clear headline\n- url: Real verifiable URL\n- source: Publication name\n- summary: 2-3 sentence summary\n- date: Publication date\n- relevance: Score 1-10\n\nSave to output.json:\n{\"items\": [...], \"search_queries_used\": [...], \"sources_checked\": []}\n\nLimit to {max_items_per_source} most relevant items."
+      },
+      "papers": {
+        "type": "research",
+        "instructions": "Search for academic papers and research about: {topic}\n\nFocus on:\n- Recent arxiv preprints (cs.*, stat.*, q-bio.* categories as relevant)\n- Papers from major conferences (NeurIPS, ICML, ICLR, ACL, CVPR, etc.)\n- Highly cited foundational papers if topic is broad\n- Papers gaining attention on social media or in blogs\n\nSearch arxiv, Semantic Scholar, Papers With Code, Google Scholar.\n\nFor each item provide:\n- title: Paper title\n- url: arxiv URL or paper page (must be real)\n- authors: First author et al.\n- summary: 2-3 sentence plain-language summary of contribution\n- venue: Conference/journal or 'preprint'\n- relevance: Score 1-10\n\nSave to output.json:\n{\"items\": [...], \"search_queries_used\": [...], \"sources_checked\": []}\n\nLimit to {max_items_per_source} most relevant items."
+      },
+      "repos": {
+        "type": "research",
+        "instructions": "Search for notable open-source repositories and tools related to: {topic}\n\nFocus on:\n- Trending GitHub repos in this area\n- New releases of relevant libraries or frameworks\n- Interesting tools or utilities practitioners would use\n- Notable forks or derivatives\n\nSearch GitHub Trending, Hacker News, GitHub search.\n\nFor each item provide:\n- title: Repository or project name\n- url: GitHub URL (must be real)\n- description: What it does in 2-3 sentences\n- stars: Star count if available\n- language: Primary programming language\n- relevance: Score 1-10\n\nSave to output.json:\n{\"items\": [...], \"search_queries_used\": [...], \"sources_checked\": []}\n\nLimit to {max_items_per_source} most relevant items."
+      },
+      "blogs": {
+        "type": "research",
+        "instructions": "Search for high-quality blog posts and long-form articles about: {topic}\n\nFocus on:\n- Technical deep-dives and tutorials\n- Posts from practitioners, researchers, and engineers\n- Company engineering blogs (Google AI, OpenAI, Meta AI, Hugging Face, etc.)\n- Community platforms (Medium, Substack, dev.to, personal blogs)\n- Content from the past 30-60 days\n\nFor each item provide:\n- title: Article title\n- url: Real URL\n- author: Author name or organization\n- summary: 2-3 sentence description of key takeaways\n- date: Publication date\n- relevance: Score 1-10\n\nSave to output.json:\n{\"items\": [...], \"search_queries_used\": [...], \"sources_checked\": []}\n\nLimit to {max_items_per_source} most relevant items."
+      },
+      "social": {
+        "type": "research",
+        "instructions": "Search for notable social media discussions and community conversations about: {topic}\n\nFocus on:\n- High-engagement Twitter/X threads from domain experts\n- Top Hacker News discussions (show HN, Ask HN, news threads)\n- Reddit posts from relevant subreddits (r/MachineLearning, r/programming, r/LocalLLaMA, etc.)\n- LinkedIn posts from thought leaders\n- Discord/Slack announcements from major communities (if publicly accessible)\n\nFor each item provide:\n- title: Brief description of the discussion\n- url: Direct URL to post/thread\n- platform: Twitter/X, Hacker News, Reddit, etc.\n- summary: 2-3 sentence summary of key points or consensus\n- engagement: Likes/upvotes/comments if available\n- relevance: Score 1-10\n\nSave to output.json:\n{\"items\": [...], \"search_queries_used\": [...], \"sources_checked\": []}\n\nLimit to {max_items_per_source} most relevant items."
+      }
+    },
+    "suffix_roles": {
+      "evaluator": {
+        "type": "custom",
+        "instructions": "You are a research quality evaluator. Read all research agent outputs from the shared context file at ../shared/context.json.\n\nYour job is to:\n1. **Validate links**: For each URL, check it looks like a real URL from a known domain. Flag suspicious URLs with confidence: 'low'.\n2. **Deduplicate**: Remove items that cover the same story/paper/repo across different research agents. Keep the best version.\n3. **Rank by relevance**: Re-rank items within each source by relevance score and recency.\n4. **Quality check**: Flag items with generic or potentially hallucinated content as confidence: 'low'.\n5. **Add editorial notes**: For the top 3 items overall across all sources, add a 'why_notable' field.\n\nSave to output.json:\n{\n  \"<source_name>\": {\"items\": [...], \"removed_count\": 0},\n  ...\n  \"quality_report\": {\n    \"total_items_received\": 0,\n    \"duplicates_removed\": 0,\n    \"low_confidence_flagged\": 0,\n    \"items_after_evaluation\": 0\n  }\n}\n\nMark each item with: confidence: 'high' or 'medium' or 'low'\nThe source keys in output.json must match the agent names without the 'research_' prefix (e.g., agent 'research_news' -> key 'news')."
+      },
+      "formatter": {
+        "type": "custom",
+        "instructions": "You are an email formatter. Read the evaluator output from the shared context file at ../shared/context.json.\n\nGenerate a clean, professional HTML email report for the research topic: {topic}\n\nDesign requirements:\n- Clean, modern email-safe HTML (inline CSS only, no external stylesheets)\n- Mobile-responsive (max-width: 600px, centered)\n- Color scheme: dark header (#1a1a2e), white body, accent colors per source type\n- Source type colors: news (#3b82f6 blue), papers (#8b5cf6 purple), repos (#10b981 green), blogs (#f59e0b amber), social (#ec4899 pink)\n- For unknown source types, use (#6b7280 gray)\n- Each item: title as a clickable link, source/author, summary\n- Show confidence badge (yellow for 'medium', red for 'low') only for non-high confidence items\n- Include 'why_notable' callout box for editorially highlighted items\n- Quality report summary at the bottom\n- Header with topic name, date, and total item count\n- Footer with 'Generated by AI Assistant' note\n\nAlso generate a plain text version.\n\nSave to output.json with this EXACT structure:\n{\n  \"subject\": \"Research Report: {topic} - YYYY-MM-DD\",\n  \"html\": \"<html>complete email HTML here</html>\",\n  \"text\": \"Plain text version here\",\n  \"item_count\": 0,\n  \"sections\": [\"news\", \"papers\", ...]\n}\n\nIMPORTANT: html and text fields must be COMPLETE email content, no placeholders."
+      }
+    }
+  }
+}
