@@ -90,9 +90,11 @@ async def execute_chat_message(
             f"system prompt length: {len(system_prompt)})"
         )
 
-        # Build clean environment without ANTHROPIC_API_KEY
-        # so Claude CLI uses the subscription instead of the API key
-        env = {k: v for k, v in os.environ.items() if k != "ANTHROPIC_API_KEY"}
+        # Build clean environment:
+        # - Remove ANTHROPIC_API_KEY so Claude CLI uses subscription instead of API key
+        # - Remove CLAUDECODE so nested session check doesn't block subprocess startup
+        env = {k: v for k, v in os.environ.items()
+               if k not in ("ANTHROPIC_API_KEY", "CLAUDECODE")}
 
         # Spawn subprocess
         process = await asyncio.create_subprocess_exec(
