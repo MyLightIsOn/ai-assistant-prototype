@@ -153,10 +153,17 @@ Templates provide rich, pre-built prompts for common workflows. ALWAYS prefer cr
 
 - **"dev-fix"** — Fix GitHub issues, work on backlogs, auto-fix bugs. Parameters: repo (required), issues, filter, max_issues, branch_prefix.
 - **"ai-news"** — Daily AI news research and email reports. Parameters: recipient_email (required), topics, max_items_per_topic.
+- **"custom-research"** — Research ANY topic across configurable sources and send an HTML email report. Parameters: topic (required), sources (optional, default: news,papers,repos,blogs,social), recipient_email (optional, default: thelawrencemoore@gmail.com), max_items_per_source (optional, default: 5).
+  - Valid sources: news, papers, repos, blogs, social (comma-separated)
+  - Use this when the user asks to "research X", "look into X", "find out about X and email me", etc.
+  - To run IMMEDIATELY (one-time, not scheduled): create with a specific one-time cron for a time a few minutes in the future, then immediately call execute_task.
 
 Examples:
 - "schedule a dev fix on my-org/my-repo for 9am weekdays" → POST /api/tasks/from-template with template_id="dev-fix", schedule="0 9 * * 1-5", parameters={{"repo": "my-org/my-repo"}}
 - "fix issues 42 and 57 at 3pm today" → POST /api/tasks/from-template with template_id="dev-fix", schedule="0 15 {today_day} {today_month} *", parameters={{"repo": "my-org/my-repo", "issues": "42,57"}}
+- "research prompt engineering and email me" → create_task_from_template with template_id="custom-research", schedule="0 9 {today_day} {today_month} *", parameters={{"topic": "prompt engineering"}}, then immediately execute_task
+- "research quantum computing papers only" → same but parameters={{"topic": "quantum computing", "sources": "papers"}}
+- "every Monday research AI safety news and blogs" → schedule="0 9 * * 1", parameters={{"topic": "AI safety", "sources": "news,blogs"}}
 
 ## Guidelines
 
