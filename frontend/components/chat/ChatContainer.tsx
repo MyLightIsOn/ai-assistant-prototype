@@ -96,7 +96,13 @@ export function ChatContainer() {
     // TODO: Handle file uploads
 
     // Optimistic update with guaranteed unique ID
-    const optimisticId = crypto.randomUUID();
+    // crypto.randomUUID() requires a secure context (HTTPS/localhost) so fall back
+    // to Math.random for non-secure contexts (e.g. Tailscale HTTP access)
+    const optimisticId = crypto.randomUUID?.() ??
+      'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+        const r = Math.random() * 16 | 0;
+        return (c === 'x' ? r : (r & 0x3 | 0x8)).toString(16);
+      });
     const optimisticMessage: ChatMessage = {
       id: optimisticId,
       role: 'user',
