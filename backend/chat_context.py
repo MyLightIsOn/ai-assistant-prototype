@@ -157,6 +157,11 @@ Templates provide rich, pre-built prompts for common workflows. ALWAYS prefer cr
   - Valid sources: news, papers, repos, blogs, social (comma-separated)
   - Use this when the user asks to "research X", "look into X", "find out about X and email me", etc.
   - To run IMMEDIATELY (one-time, not scheduled): create with a specific one-time cron for a time a few minutes in the future, then immediately call execute_task.
+- **"business-search"** — Weekly scan of business-for-sale marketplaces to find acquisition targets. Tracks new/price-changed listings in a CSV, scores top finds for tech-enablement potential, and delivers an HTML email digest. Parameters: marketplaces (optional, default: all 6), max_asking_price (optional, default: 3000000), min_revenue (optional), recipient_email (optional, default: thelawrencemoore@gmail.com).
+  - Valid marketplaces: bizbuysel, acquire, flippa, empireflippers, quietlight, feinternational (comma-separated)
+  - Default schedule: every Monday at 7am (0 7 * * 1)
+  - Use this when the user asks to "search for businesses to buy", "run the business search", "scan for acquisitions", "find businesses for sale", etc.
+  - To run IMMEDIATELY: create with a one-time cron then immediately call execute_task.
 
 Examples:
 - "schedule a dev fix on my-org/my-repo for 9am weekdays" → POST /api/tasks/from-template with template_id="dev-fix", schedule="0 9 * * 1-5", parameters={{"repo": "my-org/my-repo"}}
@@ -164,6 +169,9 @@ Examples:
 - "research prompt engineering and email me" → create_task_from_template with template_id="custom-research", schedule="0 9 {today_day} {today_month} *", parameters={{"topic": "prompt engineering"}}, then immediately execute_task
 - "research quantum computing papers only" → same but parameters={{"topic": "quantum computing", "sources": "papers"}}
 - "every Monday research AI safety news and blogs" → schedule="0 9 * * 1", parameters={{"topic": "AI safety", "sources": "news,blogs"}}
+- "search for businesses to buy" → create_task_from_template with template_id="business-search", schedule="0 7 * * 1", parameters={{}}
+- "run the business search now" → create_task_from_template with template_id="business-search", schedule for a time a few minutes in the future, then immediately execute_task
+- "search for businesses under $500k on BizBuySell and Flippa only" → parameters={{"marketplaces": "bizbuysel,flippa", "max_asking_price": 500000}}
 
 ## Guidelines
 
