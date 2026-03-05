@@ -1,0 +1,85 @@
+{
+  "id": "business-search",
+  "name": "Business Acquisition Scout",
+  "description": "Weekly scan of business-for-sale marketplaces. Tracks new and price-changed listings, scores top finds for tech-enablement potential, and delivers a formatted HTML email digest.",
+  "command": "claude",
+  "default_schedule": "0 7 * * 1",
+  "default_priority": "default",
+  "parameters": {
+    "marketplaces": {
+      "type": "string",
+      "description": "Comma-separated marketplaces to search: bizbuysel, acquire, flippa, empireflippers, quietlight, feinternational",
+      "required": false,
+      "default": "bizbuysel,acquire,flippa,empireflippers,quietlight,feinternational"
+    },
+    "max_asking_price": {
+      "type": "integer",
+      "description": "Maximum asking price filter in USD",
+      "required": false,
+      "default": 3000000
+    },
+    "min_revenue": {
+      "type": "integer",
+      "description": "Minimum annual revenue filter in USD (leave empty for no filter)",
+      "required": false,
+      "default": ""
+    },
+    "recipient_email": {
+      "type": "string",
+      "description": "Email address to receive the report",
+      "required": false,
+      "default": "thelawrencemoore@gmail.com"
+    }
+  },
+  "email_report": {
+    "enabled": true,
+    "recipient_email": "{recipient_email}",
+    "formatter_agent": "formatter"
+  },
+  "dynamic_agents": {
+    "source_param": "marketplaces",
+    "agent_prefix": "marketplace_",
+    "suffix_agents": ["tracker", "analyzer", "formatter"],
+    "synthesize": false,
+    "source_agents": {
+      "bizbuysel": {
+        "type": "research",
+        "instructions": "Search BizBuySell (bizbuysell.com) for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Location: US-based OR remote/online\n- Skip: franchises, MLM, businesses with no verifiable revenue\n- Focus: service businesses, B2B local (HVAC, cleaning, landscaping, staffing, pest control, accounting, printing, storage, trucking, etc.)\n\nSearch methods:\n- Browse bizbuysell.com/businesses-for-sale directly\n- Use web search: site:bizbuysell.com business for sale 2026\n- Try filtered URLs with max price parameter\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Business name or type\",\n  \"url\": \"Direct listing URL\",\n  \"asking_price\": 250000,\n  \"revenue\": 180000,\n  \"sde\": 95000,\n  \"business_type\": \"Category from listing\",\n  \"location\": \"City, State or Remote\",\n  \"description\": \"2-3 sentence summary of what this business does\",\n  \"why_technable\": null\n}\n\nIf revenue or SDE not listed, set to null.\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn as many qualifying listings as possible. No cap — the tracker deduplicates."
+      },
+      "acquire": {
+        "type": "research",
+        "instructions": "Search Acquire.com for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Focus: SaaS, productized services, developer tools, B2B software, newsletters, APIs\n- Skip: businesses with no verifiable revenue or MRR\n\nSearch methods:\n- Browse acquire.com/marketplace directly\n- Use web search: site:acquire.com business for sale 2026\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Business name\",\n  \"url\": \"Direct listing URL\",\n  \"asking_price\": 150000,\n  \"revenue\": 80000,\n  \"sde\": null,\n  \"business_type\": \"SaaS / Developer Tool / etc.\",\n  \"location\": \"Remote\",\n  \"description\": \"2-3 sentence summary\",\n  \"why_technable\": null\n}\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn as many qualifying listings as possible."
+      },
+      "flippa": {
+        "type": "research",
+        "instructions": "Search Flippa (flippa.com) for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Focus: content sites, apps, newsletters, ecommerce stores, SaaS\n- Skip: domain-only listings, social media accounts with no revenue, starter sites\n\nSearch methods:\n- Browse flippa.com/websites/buy directly\n- Use web search: site:flippa.com business for sale under {max_asking_price} 2026\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Site or business name\",\n  \"url\": \"Direct listing URL on flippa.com\",\n  \"asking_price\": 75000,\n  \"revenue\": 40000,\n  \"sde\": null,\n  \"business_type\": \"Content Site / App / Newsletter / etc.\",\n  \"location\": \"Remote\",\n  \"description\": \"2-3 sentence summary\",\n  \"why_technable\": null\n}\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn as many qualifying listings as possible."
+      },
+      "empireflippers": {
+        "type": "research",
+        "instructions": "Search Empire Flippers (empireflippers.com) for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Focus: vetted online businesses — Amazon FBA, SaaS, content sites, ecommerce\n- All Empire Flippers listings are pre-vetted with verified financials\n\nSearch methods:\n- Browse empireflippers.com/marketplace directly\n- Use web search: site:empireflippers.com listing for sale 2026\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Listing title\",\n  \"url\": \"Direct listing URL\",\n  \"asking_price\": 200000,\n  \"revenue\": 120000,\n  \"sde\": 72000,\n  \"business_type\": \"Amazon FBA / Content Site / SaaS / etc.\",\n  \"location\": \"Remote\",\n  \"description\": \"2-3 sentence summary\",\n  \"why_technable\": null\n}\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn all qualifying listings."
+      },
+      "quietlight": {
+        "type": "research",
+        "instructions": "Search Quiet Light Brokerage (quietlight.com) for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Focus: online businesses with clean financials — SaaS, content, ecommerce, services\n- Quiet Light listings are broker-represented with verified P&Ls\n\nSearch methods:\n- Browse quietlight.com/businesses-for-sale directly\n- Use web search: site:quietlight.com business for sale 2026\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Business name\",\n  \"url\": \"Direct listing URL\",\n  \"asking_price\": 500000,\n  \"revenue\": 300000,\n  \"sde\": 150000,\n  \"business_type\": \"SaaS / Content / Ecommerce / etc.\",\n  \"location\": \"Remote\",\n  \"description\": \"2-3 sentence summary\",\n  \"why_technable\": null\n}\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn all qualifying listings."
+      },
+      "feinternational": {
+        "type": "research",
+        "instructions": "Search FE International (feinternational.com) for businesses for sale.\n\nCriteria:\n- Asking price: under {max_asking_price} USD\n- Focus: SaaS businesses, content sites, ecommerce — FE International specializes in these\n- All listings are broker-vetted with audited financials\n\nSearch methods:\n- Browse feinternational.com/businesses-for-sale directly\n- Use web search: site:feinternational.com business for sale 2026\n\nFor each qualifying listing extract:\n{\n  \"title\": \"Business name\",\n  \"url\": \"Direct listing URL\",\n  \"asking_price\": 800000,\n  \"revenue\": 400000,\n  \"sde\": 200000,\n  \"business_type\": \"SaaS / Content / Ecommerce\",\n  \"location\": \"Remote\",\n  \"description\": \"2-3 sentence summary\",\n  \"why_technable\": null\n}\n\nSave to output.json:\n{\"listings\": [...], \"search_queries_used\": [...], \"total_found\": 0, \"filtered_out\": 0}\n\nReturn all qualifying listings. Note: fewer listings expected at lower price points."
+      }
+    },
+    "suffix_roles": {
+      "tracker": {
+        "type": "custom",
+        "instructions": "You are the tracker agent. Your job is to identify new and price-changed business listings by comparing incoming listings against the historical CSV.\n\n## Step 1: Collect all marketplace listings\n\nRead ../shared/context.json. Extract all listings from each marketplace agent's output under the keys: marketplace_bizbuysel, marketplace_acquire, marketplace_flippa, marketplace_empireflippers, marketplace_quietlight, marketplace_feinternational.\n\nFor each listing, add a 'marketplace' field identifying which agent produced it.\n\n## Step 2: Load or create the CSV\n\nCSV location (relative to your working directory): ../../../../data/business-listings-seen.csv\n\nIf the file does not exist, create it with this exact header row:\nlisting_id,marketplace,title,asking_price,revenue,sde,business_type,location,url,first_seen,last_seen,asking_price_history\n\nLoad the CSV into memory. Build a dict keyed by listing_id.\n\n## Step 3: Compute listing_id\n\nFor each incoming listing: listing_id = first 12 chars of MD5 hash of (marketplace + url).\n\nWrite and execute a small Python script to compute these. Do NOT guess hashes.\n\nExample:\n```python\nimport hashlib\nlisting_id = hashlib.md5(f\"{marketplace}:{url}\".encode()).hexdigest()[:12]\n```\n\n## Step 4: Classify each listing\n\n- NEW: listing_id not in CSV -> add new row, add to new_listings list\n- PRICE CHANGED: listing_id in CSV AND asking_price differs -> update asking_price, append old price to asking_price_history (pipe-separated), update last_seen, add to price_changed_listings\n- UNCHANGED: listing_id in CSV AND same price -> update last_seen only\n\nToday's date for first_seen/last_seen: ISO format YYYY-MM-DD.\n\n## Step 5: Write updated CSV\n\nWrite the full updated CSV back to ../../../../data/business-listings-seen.csv\n\n## Step 6: Save output.json\n\n{\n  \"new_listings\": [\n    {\n      \"listing_id\": \"abc123def456\",\n      \"marketplace\": \"bizbuysel\",\n      \"title\": \"...\",\n      \"url\": \"...\",\n      \"asking_price\": 250000,\n      \"revenue\": 180000,\n      \"sde\": 95000,\n      \"business_type\": \"...\",\n      \"location\": \"...\",\n      \"description\": \"...\",\n      \"why_technable\": null\n    }\n  ],\n  \"price_changed_listings\": [\n    {\n      \"listing_id\": \"...\",\n      \"previous_asking_price\": 280000,\n      \"asking_price\": 250000,\n      \"title\": \"...\",\n      \"url\": \"...\",\n      \"marketplace\": \"...\",\n      \"business_type\": \"...\",\n      \"location\": \"...\"\n    }\n  ],\n  \"stats\": {\n    \"total_incoming\": 0,\n    \"new\": 0,\n    \"price_changed\": 0,\n    \"unchanged\": 0\n  }\n}"
+      },
+      "analyzer": {
+        "type": "custom",
+        "instructions": "You are the analyzer agent. Your job is to score new business listings for tech-enablement fit.\n\nThe buyer has a software engineering and AI background. They want to acquire a business and increase its value through automation, AI tooling, or digital transformation. They are NOT looking for a tech startup — they want a real operating business they can improve with tech.\n\n## Step 1: Read new listings\n\nRead ../shared/context.json. Find the tracker agent's output. Extract new_listings and price_changed_listings.\n\n## Step 2: Score each new listing\n\nFor each listing in new_listings, fill in:\n\n**why_technable** (1-2 sentences): Specific, concrete opportunities for tech improvement in THIS business. Examples:\n- \"Manual scheduling and dispatch — automation with software like ServiceTitan or a custom tool could cut labor cost 20-30%.\"\n- \"No CRM or customer database visible — basic automation for follow-ups, quotes, and reviews would differentiate immediately.\"\n- \"Purely manual quoting process — an AI-assisted estimator could 3x throughput.\"\n- \"SaaS with no automated onboarding — improving activation funnel is low-hanging fruit.\"\n\nAvoid generic statements like 'technology could improve this business.'\n\n**fit_score** (1-10): Rate based on:\n- Tech-enablement potential (40%): How much room to add value via software/AI?\n- Business model clarity (20%): Is revenue clear and recurring or predictable?\n- Price/earnings ratio (20%): Is asking price reasonable vs revenue/SDE?\n- Operational simplicity (20%): Could it become more passive/absentee with tech?\n\nScoring:\n- 9-10: Strong fit\n- 7-8: Good fit\n- 5-6: Moderate\n- 1-4: Poor fit\n\n## Step 3: Select shortlist\n\nShortlist = top 5 by fit_score (minimum score 6, or best available if fewer than 5 qualify).\n\n## Step 4: Save output.json\n\n{\n  \"shortlist\": [...top 5 with why_technable and fit_score...],\n  \"all_analyzed\": [...all new_listings with why_technable and fit_score...],\n  \"price_changed\": [...price_changed_listings passed through from tracker...]\n}"
+      },
+      "formatter": {
+        "type": "custom",
+        "instructions": "You are the email formatter. Build a clean HTML email from the analyzer output.\n\n## Step 1: Read data\n\nRead ../shared/context.json. Find the analyzer agent's output. Extract: shortlist, all_analyzed, price_changed. Also find the tracker's stats.\n\n## Step 2: Build the HTML email\n\nDesign requirements:\n- Email-safe inline CSS only (no external stylesheets, no <style> tags)\n- Mobile-responsive: max-width 600px, centered\n- Dark header (#1a1a2e), white body (#ffffff), light gray section backgrounds (#f8fafc)\n- Marketplace badge colors: BizBuySell (#0ea5e9), Acquire (#8b5cf6), Flippa (#f59e0b), Empire Flippers (#10b981), Quiet Light (#6366f1), FE International (#ec4899)\n- Fit score badge: green (#10b981) for 8+, yellow (#f59e0b) for 6-7, gray (#6b7280) for below 6\n\nEmail structure:\n1. HEADER: Title 'Business Search Results', date, 'X new listings | Y marketplaces scanned'\n2. SHORTLIST SECTION (if non-empty): Heading 'Top Picks This Week'. Each listing: title as clickable link, marketplace badge, business type, asking price | revenue | SDE, location, description, why_technable in a highlighted callout box (background #eff6ff, left border #3b82f6), fit score badge\n3. PRICE DROPS SECTION (only if non-empty): Heading 'Price Drops'. Compact cards: title/link, marketplace badge, old price -> new price, business type, location\n4. FULL DIGEST SECTION: Heading 'All New Listings This Week'. HTML table: Business | Marketplace | Asking Price | Revenue | Type | Location. Business name is clickable link. Alternate row shading.\n5. FOOTER: 'X new listings found across Y marketplaces | Z price drops | CSV updated' and 'Generated by AI Assistant - Business Acquisition Scout'\n\n## Step 3: Plain text version\n\nSame sections, URLs written out in full.\n\n## Step 4: Save output.json\n\nSave with EXACT structure (html and text must be COMPLETE, no placeholders):\n\n{\n  \"subject\": \"Business Search Results — YYYY-MM-DD\",\n  \"html\": \"<html>...complete email HTML...</html>\",\n  \"text\": \"Complete plain text version\",\n  \"shortlist_count\": 5,\n  \"new_count\": 12,\n  \"price_changed_count\": 0\n}"
+      }
+    }
+  }
+}
